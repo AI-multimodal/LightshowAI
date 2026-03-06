@@ -1,4 +1,4 @@
-# Lightshowai is a web user interface to predict the x-ray absorption near edge structure (XANES) spectra using neural network models.
+# XANES spectrum prediction using neural network models
 
  Currently, the models we provide are OmniXAS models of 3d transition metal (Ti-Cu) K-edge at two levels of theory: FEFF model for all the 8 elements and VASP models for Ti and Cu only. We recommend users of Lightshowai to cite the following references: Benchmark [Phys. Rev. Materials 8, 013801 (2024)], Lightshow [Journal of Open Source Software 8 (87), 5182 (2023)], and OmniXAS [Phys. Rev. Materials 9, 043803 (2025)]. Please contact Deyu Lu (dlu@bnl.gov) if you have questions.
 
