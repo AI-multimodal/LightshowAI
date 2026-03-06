@@ -98,7 +98,7 @@ class M3GNetFeaturizer:
             g.edata["rbf"] = expanded_dists
             three_body_basis = self.model.basis_expansion(l_g)
             three_body_cutoff = polynomial_cutoff(
-                g.edata["bond_dist"], self.model.threebody_cutoff
+                g.edata["bond_dist"], self.model.threebody_cutoff # pyright: ignore[reportArgumentType]
             )
             node_feat, edge_feat, state_feat = self.model.embedding(
                 node_types, g.edata["rbf"], state_attr

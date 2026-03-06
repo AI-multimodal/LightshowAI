@@ -22,7 +22,7 @@ from crystal_toolkit.helpers.layouts import (
     Loading
 )
 
-from lightshow.ai.models import predict
+from lightshowai.models import predict
 
 
 app = dash.Dash(prevent_initial_callbacks=True, title="OmniXAS@Lightshow.ai",
@@ -113,7 +113,7 @@ def download_xas_prediction(n_clicks, st_data, el_type):
     Input(search_component.id(), "data"),
     State('absorber', 'value')
 )
-def update_structure_by_mpid(search_mpid: str, el_type) -> Structure:
+def update_structure_by_mpid(search_mpid: str, el_type) -> Structure: # pyright: ignore[reportRedeclaration]
     if not search_mpid:
         raise PreventUpdate
     
@@ -125,7 +125,7 @@ def update_structure_by_mpid(search_mpid: str, el_type) -> Structure:
         print("Struct from material.")
         
     st_dict = decorate_structure_with_xas(st, el_type)
-    return st_dict, None, f"Current structure: {search_mpid}"
+    return st_dict, None, f"Current structure: {search_mpid}" # pyright: ignore[reportReturnType]
 
 
 def decorate_structure_with_xas(st: Structure, el_type):
@@ -151,7 +151,7 @@ def update_structure_by_file(upload_data: dict, fn, el_type) -> Structure:
         raise PreventUpdate
     st = Structure.from_dict(upload_data['data'])
     st_dict = decorate_structure_with_xas(st, el_type)
-    return st_dict, f"Current structure: {fn}"
+    return st_dict, f"Current structure: {fn}" # pyright: ignore[reportReturnType]
 
 
 @app.callback(
@@ -169,7 +169,7 @@ def predict_average_xas(st_data: dict, el_type) -> Structure:
         specs = np.array(list(specs.values()))
         spectrum = specs.mean(axis=0)
         fig = build_figure(spectrum, el_type, is_average=True, no_element=False, sel_mismatch=False)
-    return fig
+    return fig # pyright: ignore[reportReturnType]
 
 
 def build_figure(spectrum, el_type, is_average, no_element, sel_mismatch):
@@ -215,13 +215,13 @@ def predict_site_specific_xas(sel, st_data, el_type) -> Structure:
         dist = dist[0]
         i_site = np.argmin(dist)
         assert dist[i_site] < 0.01
-        assert st[i_site].specie.symbol == el_sel
-        if st[i_site].specie.symbol != element:
+        assert st[i_site].specie.symbol == el_sel # pyright: ignore[reportArgumentType]
+        if st[i_site].specie.symbol != element: # pyright: ignore[reportArgumentType]
             fig = build_figure(None, el_type, is_average=False, no_element=False, sel_mismatch=True)
         else:
             spectrum = np.array(specs[str(i_site)])
             fig = build_figure(spectrum, el_type, is_average=False, no_element=False, sel_mismatch=False)
-    return fig
+    return fig # pyright: ignore[reportReturnType]
 
 
 @app.callback(
@@ -232,7 +232,7 @@ def predict_site_specific_xas(sel, st_data, el_type) -> Structure:
 def update_structure_by_mpid(el_type, st_data) -> Structure:
     st = Structure.from_dict(st_data)
     st_dict = decorate_structure_with_xas(st, el_type)
-    return st_dict
+    return st_dict # pyright: ignore[reportReturnType]
     
 
 ctc.register_crystal_toolkit(app=app, layout=onmixas_layout)
