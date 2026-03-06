@@ -121,7 +121,7 @@ class M3GNetFeaturizer:
 
     @cache
     @staticmethod
-    def _load_m3gnet(path=PARENT_DIRECTORY / "models/M3GNet-MP-2021.2.8-PES"):
+    def _load_m3gnet(path=PARENT_DIRECTORY / "model_checkpoints/M3GNet-MP-2021.2.8-PES"):
         model = load_model(path).model
         model.eval()
         return model
