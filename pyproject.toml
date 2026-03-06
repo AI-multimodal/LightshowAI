@@ -21,7 +21,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
 ]
 
-requires-python = ">=3.9"
+requires-python = "==3.11"
 dependencies = [
     "crystal_toolkit>=2024.10.22",
     "dgl==2.1.0",
