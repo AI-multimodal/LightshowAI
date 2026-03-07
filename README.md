@@ -8,6 +8,18 @@
 Using [machine-learned neural networks](https://doi.org/10.48550/arXiv.2409.19552) stacked on top of the [M3GNet architecture](https://github.com/materialsvirtuallab/m3gnet), we have built in direct XANES spectrum prediction. 
 
 # Installation
+The cmake tool is needed for some OS/Python combinations.
+On Ubuntu, please install it by:
+```
+sudo apt-get update
+sudo apt-get install -y cmake build-essential
+```
+On RHEL/CentOS/Alma/Rocky:
+```
+sudo yum install -y cmake gcc gcc-c++ make
+```
+
+After cmake is installed, you can proceed to install LightshowAI by:
 ```bash
 conda create -n LightshowAI python=3.11
 conda activate LightshowAI
