@@ -8,7 +8,7 @@
 Using [machine-learned neural networks](https://doi.org/10.48550/arXiv.2409.19552) stacked on top of the [M3GNet architecture](https://github.com/materialsvirtuallab/m3gnet), we have built in direct XANES spectrum prediction. 
 
 # Installation
-The cmake tool is needed for some OS/Python combinations.
+The cmake tool is needed for some OS/Python combinations by the BoltzTraP2 package.
 On Ubuntu, please install it by:
 ```
 sudo apt-get update
