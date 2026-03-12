@@ -1,0 +1,27 @@
+# config.yml — Tiled server configuration for LightshowAI
+# @from Claude
+# Usage:
+#   1. tiled catalog init catalog.db
+#   2. tiled serve config config.yml
+#   3. tiled register http://localhost:8000 \
+#        --api-key <SECRET> --verbose \
+#        --ext '.xdi=application/x-xdi' \
+#        --adapter 'application/x-xdi=tiled.examples.xdi:read_xdi' \
+#        /home/sairam/LightshowAI/LightshowAI/data
+
+trees:
+  - path: /
+    tree: tiled.catalog:from_uri
+    args:
+      uri: ./catalog.db
+      readable_storage:
+        - /home/sairam/LightshowAI/LightshowAI/data
+      adapters_by_mimetype:
+        application/x-xdi: xdi_adapter:XDIAdapter
+
+authentication:
+  allow_anonymous_access: true
+
+# Uncomment to enable streaming via Redis:
+# streaming_cache:
+#   uri: redis://localhost:6379
