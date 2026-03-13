@@ -3,10 +3,10 @@
 # Usage:
 #   1. tiled catalog init catalog.db
 #   2. tiled serve config config.yml
-#   3. tiled register http://localhost:8000 \
-#        --api-key <SECRET> --verbose \
-#        --ext '.xdi=application/x-xdi' \
-#        --adapter 'application/x-xdi=tiled.examples.xdi:read_xdi' \
+#   3. PYTHONPATH=$(pwd) tiled register http://localhost:8000 \
+#        --api-key secret --verbose \
+#        --ext '.xdi=text/x-xdi' \
+#        --adapter 'text/x-xdi=xdi_adapter:XDIAdapter' \
 #        /home/sairam/LightshowAI/LightshowAI/data
 
 trees:
@@ -17,7 +17,7 @@ trees:
       readable_storage:
         - /home/sairam/LightshowAI/LightshowAI/data
       adapters_by_mimetype:
-        application/x-xdi: xdi_adapter:XDIAdapter
+        text/x-xdi: xdi_adapter:XDIAdapter
 
 authentication:
   allow_anonymous_access: true

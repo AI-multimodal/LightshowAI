@@ -1,154 +1,164 @@
-"""
-@from Claude
-Custom Tiled adapter for XDI (X-ray Data Interchange) files.
+# xdi_adapter.py
+from io import StringIO
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-XDI is a standard format for X-ray absorption spectroscopy data,
-commonly used at synchrotron beamlines like NSLS-II BMM.
-
-Reference: https://github.com/XraySpectroscopy/XDI
-
-Usage with Tiled 0.2.x:
-    - Place this file alongside your config.yml
-    - Register the MIME type application/x-xdi for .xdi files
-    - See config.yml for wiring details
-
-Tiled 0.2.x requires adapters to be classes with from_uris() classmethod.
-"""
-
-import re
-from pathlib import Path
-from urllib.parse import urlparse
-
+import dask.dataframe
 import pandas as pd
-from tiled.adapters.table import TableAdapter
-from tiled.structures.core import Spec
+
+from tiled.adapters.array import ArrayAdapter
+from tiled.adapters.core import Adapter
+from tiled.catalog.orm import Node
+from tiled.structures.core import Spec, StructureFamily
+from tiled.structures.data_source import DataSource
+from tiled.structures.table import TableStructure
+from tiled.type_aliases import JSON
+from tiled.utils import path_from_uri
+from tiled.adapters.utils import init_adapter_from_catalog
 
 
-def _parse_xdi(filepath):
-    """
-    Parse an XDI file into a DataFrame and metadata dict.
-    """
-    filepath = Path(filepath)
-    header_metadata = {}
-    column_names = []
-    data_start_line = 0
+class XDIAdapter(Adapter[TableStructure]):
+    """Adapter for XDI (.xdi) spectroscopy files."""
 
-    with open(filepath, "r") as f:
-        lines = f.readlines()
+    structure_family = StructureFamily.table
 
-    for i, line in enumerate(lines):
-        stripped = line.strip()
+    def __init__(
+        self,
+        data_uri: str,
+        structure: Optional[TableStructure] = None,
+        *,
+        metadata: Optional[JSON] = None,
+        specs: Optional[List[Spec]] = None,
+    ) -> None:
+        filepath = path_from_uri(data_uri)
+        df, xdi_metadata = _parse_xdi(str(filepath))
 
-        # End-of-header markers
-        if stripped == "# ///" or stripped.startswith("#---") or stripped.startswith("# ---"):
-            continue
-
-        if stripped.startswith("#"):
-            # Parse column definitions: "# Column.N: name unit"
-            col_match = re.match(r"^#\s*Column\.(\d+):\s*(.+)$", stripped)
-            if col_match:
-                col_info = col_match.group(2).strip()
-                column_names.append(col_info.split()[0])
-                continue
-
-            # Parse key-value metadata: "# Namespace.key: value"
-            kv_match = re.match(r"^#\s*([\w.]+):\s*(.+)$", stripped)
-            if kv_match:
-                key = kv_match.group(1).strip()
-                value = kv_match.group(2).strip()
-                try:
-                    value = float(value)
-                    if value == int(value):
-                        value = int(value)
-                except (ValueError, OverflowError):
-                    pass
-                header_metadata[key] = value
-                continue
-
-            # Column header line (e.g., "#   e   norm   nbkg ...")
-            if not stripped.startswith("# XDI") and len(stripped.split()) > 2:
-                potential_cols = stripped.lstrip("#").split()
-                if not column_names and all(not c[0].isdigit() for c in potential_cols):
-                    column_names = potential_cols
+        if metadata is None:
+            metadata = xdi_metadata
         else:
-            if stripped:
-                data_start_line = i
-                break
+            metadata = {**xdi_metadata, **metadata}
 
-    df = pd.read_csv(
-        filepath,
-        comment="#",
-        sep=r"\s+",
-        header=None,
-        skiprows=data_start_line,
-    )
+        if specs is None:
+            specs = [Spec("xdi")]
 
-    if column_names and len(column_names) == len(df.columns):
-        df.columns = column_names
-    elif column_names and len(column_names) < len(df.columns):
-        extra = [f"col_{i}" for i in range(len(column_names), len(df.columns))]
-        df.columns = column_names + extra
-    else:
-        df.columns = [f"col_{i}" for i in range(len(df.columns))]
+        self._ddf = dask.dataframe.from_pandas(df, npartitions=1)
 
-    # Add convenience keys
-    if "Element.symbol" in header_metadata:
-        header_metadata["element"] = header_metadata["Element.symbol"]
-    if "Element.edge" in header_metadata:
-        header_metadata["edge"] = header_metadata["Element.edge"]
-    if "Sample.name" in header_metadata:
-        header_metadata["sample_name"] = header_metadata["Sample.name"]
+        if structure is None:
+            structure = TableStructure.from_dask_dataframe(self._ddf)
 
-    return df, header_metadata
+        super().__init__(structure, metadata=metadata, specs=specs)
 
-
-class XDIAdapter(TableAdapter):
-    """
-    Tiled 0.2.x compatible adapter for XDI files.
-
-    Provides from_uris() classmethod required by the catalog registration API.
-    """
+    @classmethod
+    def from_catalog(
+        cls,
+        data_source: DataSource[TableStructure],
+        node: Node,
+        /,
+        **kwargs: Optional[Any],
+    ) -> "XDIAdapter":
+        return init_adapter_from_catalog(cls, data_source, node, **kwargs)
 
     @classmethod
     def from_uris(
         cls,
-        *uris,
-        structure=None,
-        metadata=None,
-        specs=None,
-        access_policy=None,
-        **kwargs,
-    ):
-        """
-        Create an XDIAdapter from one or more file URIs.
+        *data_uris: str,
+        **kwargs: Optional[Any],
+    ) -> "XDIAdapter":
+        return cls(data_uris[0], **kwargs)
 
-        Parameters
-        ----------
-        uris : str
-            File URIs (e.g., "file:///path/to/file.xdi")
-        structure : optional
-            Pre-computed structure (ignored, we compute from file)
-        metadata : dict, optional
-            Additional metadata
-        specs : list, optional
-            Tiled specs
-        """
-        # Convert URI to filepath
-        filepath = urlparse(uris[0]).path
+    def read(self, fields: Optional[List[str]] = None) -> pd.DataFrame:
+        df = self._ddf
+        if fields is not None:
+            df = df[fields]
+        return df.compute()
 
-        df, xdi_metadata = _parse_xdi(filepath)
+    def read_partition(
+        self, indx: int, fields: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        df = self._ddf
+        if fields is not None:
+            df = df[fields]
+        return df.compute()
 
-        if metadata is None:
-            metadata = {}
-        merged_metadata = {**xdi_metadata, **metadata}
+    def get(self, key: str) -> Optional[ArrayAdapter]:
+        if key not in self.structure().columns:
+            return None
+        return ArrayAdapter.from_array(self.read([key])[key].values)
 
-        if specs is None:
-            specs = []
-        specs = list(specs) + [Spec("xdi")]
+    def __getitem__(self, key: str) -> ArrayAdapter:
+        return ArrayAdapter.from_array(self.read([key])[key].values)
 
-        return cls.from_pandas(
-            df,
-            npartitions=1,
-            metadata=merged_metadata,
-            specs=specs,
+    def items(self) -> Iterator[Tuple[str, ArrayAdapter]]:
+        yield from (
+            (key, ArrayAdapter.from_array(self.read([key])[key].values))
+            for key in self._structure.columns
         )
+
+
+def _parse_xdi(filepath: str) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    """Read an XDI file and return (DataFrame, metadata_dict)."""
+    metadata: Dict[str, str] = {}
+    colspec: Dict[int, str] = {}
+    data_lines: List[str] = []
+
+    in_data = False
+    saw_triple_slash = False
+
+    def strip_hash(line: str) -> str:
+        s = line[1:]
+        if s.startswith(" "):
+            s = s[1:]
+        return s.rstrip("\n")
+
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            s = line.strip()
+
+            if s.startswith("#"):
+                payload = strip_hash(line).strip()
+
+                if payload == "///":
+                    saw_triple_slash = True
+                    in_data = True
+                    continue
+
+                if payload.startswith("Column."):
+                    try:
+                        left, right = payload.split(":", 1)
+                        _, n_str = left.split(".", 1)
+                        colspec[int(n_str.strip())] = " ".join(right.strip().split())
+                        continue
+                    except Exception:
+                        pass
+
+                if ":" in payload:
+                    k, v = payload.split(":", 1)
+                    k, v = k.strip(), v.strip()
+                    if k:
+                        metadata[k] = v
+                continue
+
+            if not in_data and not saw_triple_slash:
+                if s and (s[0].isdigit() or s[0] in "+-."):
+                    in_data = True
+
+            if in_data and s:
+                if s.startswith("---"):
+                    continue
+                data_lines.append(line)
+
+    if not data_lines:
+        return pd.DataFrame(), metadata
+
+    df = pd.read_csv(
+        StringIO("".join(data_lines)),
+        sep=r"\s+",
+        header=None,
+        engine="python",
+    )
+
+    if colspec:
+        df.columns = [colspec.get(i + 1, f"col{i+1}") for i in range(df.shape[1])]
+    else:
+        df.columns = [f"col{i+1}" for i in range(df.shape[1])]
+
+    return df, metadata
