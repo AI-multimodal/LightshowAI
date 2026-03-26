@@ -37,6 +37,8 @@ dependencies = [
     "gunicorn>=23.0.0",
     "gevent>=25.5.0",
     "emmet-core==0.84.3rc0",
+    "tiled[all]",
+    "redis>=5.0.0",
 ]
 version = "0.0.1"
 

@@ -16,4 +16,8 @@ for file_name in client:
 	print(df.head())
 
 
+subs = []
+
+
+
 

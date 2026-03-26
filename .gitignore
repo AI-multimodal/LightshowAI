@@ -147,3 +147,9 @@ dmypy.json
 cython_debug/
 .vscode/settings.json
 .vscode/launch.json
+
+
+# data files
+./data/
+./data_source/
+

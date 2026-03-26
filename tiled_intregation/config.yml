@@ -16,12 +16,13 @@ trees:
       uri: ./catalog.db
       readable_storage:
         - /home/sairam/LightshowAI/LightshowAI/data
+      writable_storage:
+        - /home/sairam/LightshowAI/LightshowAI/data
       adapters_by_mimetype:
         text/x-xdi: xdi_adapter:XDIAdapter
 
 authentication:
   allow_anonymous_access: true
 
-# Uncomment to enable streaming via Redis:
-# streaming_cache:
-#   uri: redis://localhost:6379
+streaming_cache:
+  uri: redis://localhost:6379
