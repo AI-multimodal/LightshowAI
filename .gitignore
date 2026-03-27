@@ -150,6 +150,6 @@ cython_debug/
 
 
 # data files
-./data/
-./data_source/
+data/
+data_source/
 
