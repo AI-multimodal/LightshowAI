@@ -61,6 +61,14 @@ from tiled.client import from_uri
 
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.getenv("API_KEY")
+SANDBOX_URL = "tst/sandbox/qas/processed/"
+# TILED_URL = "http://127.0.0.1:8000"
+# TILED_API_KEY = "secret"
+
+if not TILED_URL:
+    raise RuntimeError("TILED_URL is not set")
+if not TILED_API_KEY:
+    raise RuntimeError("API_KEY is not set")
 
 
 _tiled_queue = queue.Queue()
@@ -139,7 +147,7 @@ def on_new_tiled_spectrum(update):
     try:
         entry = update.child()
         md = getattr(entry, "metadata", {}) or {}
-
+        md = dict(md)
         df = entry.read()
         if not isinstance(df, pd.DataFrame):
             try:
@@ -170,8 +178,9 @@ def start_tiled_listener():
 
         print("Starting Tiled listener...")
         client = from_uri(TILED_URL, api_key=TILED_API_KEY)
-
-        sub = client.subscribe()
+        print("REMOVE IT, JUST FOR DEBUG Connected to Tiled server at", list(client['tst/sandbox/qas/processed/']))
+        sandbox = client[SANDBOX_URL]
+        sub = sandbox.subscribe()
         sub.child_created.add_callback(on_new_tiled_spectrum)
         sub.start_in_thread()
 
@@ -908,15 +917,18 @@ def load_spectrum_from_tiled(tiled_event):
         raise PreventUpdate
 
     # spectrum = tiled_event.get("spectrum")
-    print(f"DEBUG: Loading spectrum from tiled event: {tiled_event['key']}")
-    print(f"DEBUG: Spectrum columns: {tiled_event['spectrum'].columns.tolist()}")
+    # print(f"DEBUG: Loading spectrum from tiled event: {tiled_event['key']}")
+    # print(f"DEBUG: Spectrum columns: {tiled_event['spectrum'].columns.tolist()}")
+    spec = tiled_event["spectrum"]
+    print(list(spec.keys()))
+
     spectrum_payload = {
-        "energy": tiled_event["spectrum"]["energy eV"].tolist(),
-        "absorption": tiled_event["spectrum"]["flat"].tolist(),
+        "energy": spec["energy eV"],
+        "absorption": spec["flat"],
         "filename": tiled_event["key"],
-        "material_name": tiled_event["metadata"].get("Sample.name", tiled_event["key"]),
-        "x_label": "Energy (eV)",
-        "y_label": "Flat",
+        "material_name": tiled_event["metadata"].get("Sample.name", ""),
+        "x_label": "energy eV",
+        "y_label": "flat",
     }
 
     label = spectrum_payload.get("material_name") or spectrum_payload.get("filename") or "Tiled Live"
