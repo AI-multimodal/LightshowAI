@@ -40,6 +40,7 @@ from dash.exceptions import PreventUpdate
 from pymatgen.core.structure import Structure
 from mp_api.client import MPRester
 
+
 import crystal_toolkit.components as ctc
 from crystal_toolkit.helpers.layouts import (
     Box,
@@ -50,6 +51,22 @@ from crystal_toolkit.helpers.layouts import (
 
 from lightshowai.models import predict
 from lightshowai.postprocess import compare_utils
+
+import threading
+import queue
+import atexit
+from datetime import datetime
+
+from tiled.client import from_uri
+
+TILED_URL = os.getenv("TILED_URL")
+TILED_API_KEY = os.getenv("API_KEY")
+
+
+_tiled_queue = queue.Queue()
+_tiled_listener_started = False
+_tiled_listener_lock = threading.Lock()
+_tiled_subscription = None
 
 
 app = dash.Dash(prevent_initial_callbacks=True, title="OmniXAS@Lightshow.ai",
@@ -116,6 +133,62 @@ METRIC_SHORT_NAMES = {
     "normed_wasserstein": "Wasser.",
 }
 
+
+def on_new_tiled_spectrum(update):
+    print("Tiled update received:", update)
+    try:
+        entry = update.child()
+        md = getattr(entry, "metadata", {}) or {}
+
+        df = entry.read()
+        if not isinstance(df, pd.DataFrame):
+            try:
+                df = pd.DataFrame(df)
+            except Exception:
+                raise ValueError("Tiled entry did not produce a pandas DataFrame")
+
+        event = {
+            "key": str(update.key),
+            "metadata": md,
+            "spectrum": df.to_dict("list")  # Convert DataFrame to dict of lists for JSON serialization,
+        }
+
+        _tiled_queue.put(event)
+        print(f"Queued new spectrum from Tiled: {update.key}")
+
+    except Exception as e:
+        print(f"Error processing Tiled update: {e}")
+        import traceback
+        traceback.print_exc()
+
+def start_tiled_listener():
+    global _tiled_listener_started, _tiled_subscription
+
+    with _tiled_listener_lock:
+        if _tiled_listener_started:
+            return
+
+        print("Starting Tiled listener...")
+        client = from_uri(TILED_URL, api_key=TILED_API_KEY)
+
+        sub = client.subscribe()
+        sub.child_created.add_callback(on_new_tiled_spectrum)
+        sub.start_in_thread()
+
+        _tiled_subscription = sub
+        _tiled_listener_started = True
+        print("Tiled listener started.")
+
+        def _cleanup():
+            global _tiled_subscription
+            try:
+                if _tiled_subscription is not None:
+                    _tiled_subscription.disconnect()
+                    print("Tiled listener disconnected.")
+            except Exception as e:
+                print("Error disconnecting Tiled listener:", e)
+
+        atexit.register(_cleanup)
 
 def get_spectrum_match_score(predicted_spectrum, exp_spectrum, element):
     """
@@ -387,7 +460,17 @@ button_secondary_style = {
     'fontFamily': base_font
 }
 
+tiled_poll_interval = dcc.Interval(
+    id="tiled_poll_interval",
+    interval=1000,   # 1 second
+    n_intervals=0
+)
+
+tiled_live_store = dcc.Store(id="tiled_live_store", data=None)
+
 onmixas_layout = html.Div([
+    tiled_poll_interval,
+    tiled_live_store,
     # Main content area
     Columns([
         # Column 1: Input Controls
@@ -793,6 +876,57 @@ def parse_file_columns(contents, filename):
         import traceback
         traceback.print_exc()
         return {'error': str(e)}
+
+@app.callback(
+    Output("tiled_live_store", "data"),
+    Input("tiled_poll_interval", "n_intervals"),
+    prevent_initial_call=False
+)
+def poll_tiled_updates(n):
+    latest = None
+
+    while True:
+        try:
+            latest = _tiled_queue.get_nowait()
+        except queue.Empty:
+            break
+
+    if latest is None:
+        raise PreventUpdate
+
+    return latest
+
+@app.callback(
+    Output('exp_spectrum_store', 'data', allow_duplicate=True),
+    Output('exp_file_info', 'children', allow_duplicate=True),
+    Output('exp_material_name', 'value', allow_duplicate=True),
+    Input('tiled_live_store', 'data'),
+    prevent_initial_call=True
+)
+def load_spectrum_from_tiled(tiled_event):
+    if tiled_event is None:
+        raise PreventUpdate
+
+    # spectrum = tiled_event.get("spectrum")
+    print(f"DEBUG: Loading spectrum from tiled event: {tiled_event['key']}")
+    print(f"DEBUG: Spectrum columns: {tiled_event['spectrum'].columns.tolist()}")
+    spectrum_payload = {
+        "energy": tiled_event["spectrum"]["energy eV"].tolist(),
+        "absorption": tiled_event["spectrum"]["flat"].tolist(),
+        "filename": tiled_event["key"],
+        "material_name": tiled_event["metadata"].get("Sample.name", tiled_event["key"]),
+        "x_label": "Energy (eV)",
+        "y_label": "Flat",
+    }
+
+    label = spectrum_payload.get("material_name") or spectrum_payload.get("filename") or "Tiled Live"
+
+    info = html.Span(
+        f"✓ Live update from NSLSII: {label} ({len(spectrum_payload['energy'])} points)",
+        style={"color": "green"}
+    )
+
+    return spectrum_payload, info, label
 
 
 @app.callback(
@@ -1868,7 +2002,8 @@ def serve():
               "please set your materials project API key to "
               "this environment variable before running this app")
         exit()
-    app.run(debug=False, port=8443, host='0.0.0.0')
+    start_tiled_listener()
+    app.run(debug=False, port=8443, host='127.0.0.1')
 
 if __name__ == "__main__":
     serve()
