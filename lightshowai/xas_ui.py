@@ -62,8 +62,6 @@ from tiled.client import from_uri
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.getenv("API_KEY")
 SANDBOX_URL = "tst/sandbox/qas/processed/"
-# TILED_URL = "http://127.0.0.1:8000"
-# TILED_API_KEY = "secret"
 
 if not TILED_URL:
     raise RuntimeError("TILED_URL is not set")
@@ -84,7 +82,7 @@ server = app.server
 struct_component = ctc.StructureMoleculeComponent(id="st_vis", 
                                                   show_image_button=False, 
                                                   show_export_button=False)
-search_component = ctc.SearchComponent(id='mpid_search')
+
 upload_component = ctc.StructureMoleculeUploadComponent(id='file_loader')
 
 # Combined single/multiple structure upload component
@@ -332,6 +330,38 @@ exp_material_name_input = dcc.Input(
     }
 )
 
+mpid_list_input = dcc.Textarea(
+    id="mpid_list_input",
+    placeholder="Enter MP IDs separated by commas, spaces, or new lines\nExample:\nmp-390, mp-2657\nmp-5827",
+    style={
+        "width": "100%",
+        "height": "90px",
+        "padding": "10px 12px",
+        "borderRadius": "6px",
+        "border": "1px solid #ddd",
+        "fontSize": "12px",
+        "boxSizing": "border-box",
+        "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }
+)
+
+mpid_search_btn = html.Button(
+    "Search MP IDs",
+    id="mpid_search_btn",
+    style={
+        'padding': '8px 16px',
+        'fontSize': '12px',
+        'border': 'none',
+        'borderRadius': '6px',
+        'backgroundColor': '#333',
+        'color': 'white',
+        'cursor': 'pointer',
+        'fontWeight': '500',
+        'marginTop': '8px',
+        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }
+)
+
 # Store for raw file data (before column selection)
 exp_raw_data_store = dcc.Store(id='exp_raw_data_store', data=None)
 
@@ -477,6 +507,46 @@ tiled_poll_interval = dcc.Interval(
 
 tiled_live_store = dcc.Store(id="tiled_live_store", data=None)
 
+
+mpid_search_btn = html.Button(
+    "Search MP IDs",
+    id="mpid_search_btn",
+    style={
+        'padding': '8px 16px',
+        'fontSize': '12px',
+        'border': 'none',
+        'borderRadius': '6px',
+        'backgroundColor': '#333',
+        'color': 'white',
+        'cursor': 'pointer',
+        'fontWeight': '500',
+        'marginTop': '8px',
+        'fontFamily': base_font
+    }
+)
+
+def parse_mpid_list(value):
+    if not value:
+        return []
+
+    if isinstance(value, list):
+        text = " ".join(str(x) for x in value if x)
+    else:
+        text = str(value)
+
+    mpids = re.findall(r"mp-\d+", text)
+
+    # de-duplicate while preserving order
+    seen = set()
+    result = []
+    for mpid in mpids:
+        if mpid not in seen:
+            seen.add(mpid)
+            result.append(mpid)
+
+    return result
+
+
 onmixas_layout = html.Div([
     tiled_poll_interval,
     tiled_live_store,
@@ -532,11 +602,10 @@ onmixas_layout = html.Div([
                 html.Div([
                     html.Div("Load Structure", style=section_header_style),
                     
-                    # Single structure search
-                    html.Div("Search by Materials Project ID:", style={**input_label_style, "marginBottom": "8px"}),
-                    Loading(search_component.layout()),
-                    
-                    html.Hr(style={"margin": "15px 0", "border": "none", "borderTop": "1px solid #eee"}),
+                    # Multiple structure search
+                    html.Div("Materials Project IDs:", style={**input_label_style, "marginBottom": "8px"}),
+                    mpid_list_input,
+                    mpid_search_btn,
                     
                     # Combined single/multiple file upload
                     html.Div("Upload structure file(s):", style={**input_label_style, "marginBottom": "4px"}),
@@ -1180,20 +1249,148 @@ def download_xas_prediction(n_clicks, st_data, el_type):
 @app.callback(
     Output(struct_component.id(), "data", allow_duplicate=True),
     Output('st_source', "children", allow_duplicate=True),
-    Input(search_component.id(), "data"),
-    State('absorber', 'value')
+    Output('structure_scores_store', 'data', allow_duplicate=True),
+    Output('matching_results_table', 'children', allow_duplicate=True),
+    Output('comparison_range_store', 'data', allow_duplicate=True),
+    Input("mpid_search_btn", "n_clicks"),
+    State("mpid_list_input", "value"),
+    State('absorber', 'value'),
+    State('exp_spectrum_store', 'data'),
+    State('structure_scores_store', 'data'),
+    State('sort_metric_store', 'data'),
+    prevent_initial_call=True
 )
-def update_structure_by_mpid(search_mpid: str, el_type) -> Structure:
-    if not search_mpid:
+def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, exp_data, existing_scores, sort_metric):
+    if not n_clicks:
         raise PreventUpdate
-    
-    with MPRester() as mpr:
-        st = mpr.get_structure_by_material_id(search_mpid)
-        if not isinstance(st, Structure):
-            raise Exception("mp_api MPRester.get_structure_by_material_id did not return a pymatgen Structure object.")
 
-    st_dict = decorate_structure_with_xas(st, el_type)
-    return st_dict, f"Current structure: {search_mpid}"
+    if existing_scores is None:
+        existing_scores = []
+
+    if sort_metric is None:
+        sort_metric = "coss_deriv"
+
+    mpids = parse_mpid_list(mpid_list_value)
+    if not mpids:
+        raise PreventUpdate
+
+    element, theory = el_type.split(" ")
+    has_exp_data = exp_data is not None and "energy" in exp_data and "absorption" in exp_data
+
+    successful = 0
+    failed = 0
+    failed_ids = []
+    comparison_range = None
+    last_st_dict = None
+    last_mpid = None
+
+    with MPRester() as mpr:
+        docs = mpr.materials.search(
+            material_ids=mpids,
+            fields=["material_id", "structure"],
+        )
+
+    docs_by_id = {str(doc.material_id): doc for doc in docs}
+
+    for mpid in mpids:
+        try:
+            doc = docs_by_id.get(mpid)
+            if doc is None or doc.structure is None:
+                failed += 1
+                failed_ids.append(f"{mpid} (not found)")
+                continue
+
+            st = doc.structure
+            if not isinstance(st, Structure):
+                failed += 1
+                failed_ids.append(f"{mpid} (invalid structure)")
+                continue
+
+            if element not in st.composition:
+                failed += 1
+                failed_ids.append(f"{mpid} (no {element})")
+                continue
+
+            specs = predict(st, element, theory)
+            if len(specs) == 0:
+                failed += 1
+                failed_ids.append(f"{mpid} (no spectrum)")
+                continue
+
+            specs_array = np.array(list(specs.values()))
+            predicted_spectrum = specs_array.mean(axis=0)
+            energy = ene_grid[element].tolist()
+
+            if has_exp_data:
+                match_result = get_spectrum_match_score(predicted_spectrum, exp_data, element)
+            else:
+                match_result = {
+                    "score": 0.0,
+                    "correlations": {},
+                    "shift": 0.0,
+                    "comparison_range": None
+                }
+
+            old_entry = next((s for s in existing_scores if s["structure_id"] == mpid), None)
+            was_selected = old_entry.get("selected", False) if old_entry else False
+
+            existing_scores = [s for s in existing_scores if s["structure_id"] != mpid]
+
+            existing_scores.append({
+                "structure_id": mpid,
+                "score": match_result["score"],
+                "shift": match_result["shift"],
+                "correlations": match_result["correlations"],
+                "comparison_range": match_result["comparison_range"],
+                "spectrum": predicted_spectrum.tolist(),
+                "energy": energy,
+                "element": element,
+                "selected": was_selected
+            })
+
+            if match_result["comparison_range"] is not None:
+                comparison_range = match_result["comparison_range"]
+
+            st_dict = st.as_dict()
+            st_dict["xas"] = specs
+            last_st_dict = st_dict
+            last_mpid = mpid
+            successful += 1
+
+        except Exception as e:
+            print(f"Error processing {mpid}: {e}")
+            import traceback
+            traceback.print_exc()
+            failed += 1
+            failed_ids.append(mpid)
+
+    existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
+
+    if successful == 0:
+        source_text = f"No valid structures loaded. Failed: {failed}"
+        return (
+            dash.no_update,
+            source_text,
+            existing_scores,
+            build_scores_table(existing_scores, sort_metric),
+            comparison_range
+        )
+
+    if successful == 1:
+        source_text = f"Current structure: {last_mpid}"
+    else:
+        source_text = f"Loaded {successful} MP structures"
+
+    if failed > 0:
+        source_text += f" | Failed: {failed}"
+
+    return (
+        last_st_dict,
+        source_text,
+        existing_scores,
+        build_scores_table(existing_scores, sort_metric),
+        comparison_range
+    )
 
 
 def decorate_structure_with_xas(st: Structure, el_type):
@@ -1802,12 +1999,13 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
     element = el_type.split(' ')[0]
     energy = ene_grid[element].tolist()
     
-    structure_id = "unknown"
+    structure_id = None
     if structure_source and isinstance(structure_source, str):
-        if ":" in structure_source:
-            structure_id = structure_source.split(":")[-1].strip()
-        else:
-            structure_id = structure_source
+        if structure_source.startswith("Current structure:"):
+            structure_id = structure_source.split(":", 1)[1].strip()
+
+    if structure_id is None:
+        return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
     
     match_result = get_spectrum_match_score(predicted_spectrum, exp_data, element)
     
