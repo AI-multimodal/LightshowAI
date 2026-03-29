@@ -178,8 +178,8 @@ def start_tiled_listener():
 
         print("Starting Tiled listener...")
         client = from_uri(TILED_URL, api_key=TILED_API_KEY)
-        print("REMOVE IT, JUST FOR DEBUG Connected to Tiled server at", list(client['tst/sandbox/qas/processed/']))
-        sandbox = client[SANDBOX_URL]
+        print("DEBUG Connected to Tiled server at", list(client[XAS_SANDBOX_URL]))
+        sandbox = client[XAS_SANDBOX_URL]
         sub = sandbox.subscribe()
         sub.child_created.add_callback(on_new_tiled_spectrum)
         sub.start_in_thread()
@@ -198,6 +198,10 @@ def start_tiled_listener():
                 print("Error disconnecting Tiled listener:", e)
 
         atexit.register(_cleanup)
+try:
+    start_tiled_listener()
+except Exception as e:
+    print(f"Failed to start Tiled listener: {e}")
 
 def get_spectrum_match_score(predicted_spectrum, exp_spectrum, element):
     """

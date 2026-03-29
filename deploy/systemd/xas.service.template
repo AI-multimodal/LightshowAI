@@ -5,7 +5,7 @@ After=network.target
 [Service]
 WorkingDirectory={{PROJECT_ROOT}}/lightshowai
 EnvironmentFile={{PROJECT_ROOT}}/.env.local
-ExecStart={{PYTHON_BIN}} -m gunicorn --workers 2 --bind 0.0.0.0:8443 xas_ui:server
+ExecStart={{PYTHON_BIN}} -m gunicorn --workers 1 --bind 127.0.0.1:8443 xas_ui:server
 Restart=always
 
 [Install]

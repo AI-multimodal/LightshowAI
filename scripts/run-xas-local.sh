@@ -23,6 +23,6 @@ fi
 : "${XAS_SANDBOX_URL:?XAS_SANDBOX_URL is not set. Add it to .env.local}"
 
 exec gunicorn \
-  --workers 2 \
-  --bind 0.0.0.0:8443 \
+  --workers 1 \
+  --bind 127.0.0.1:8443 \
   xas_ui:server
