@@ -14,7 +14,7 @@ def _patch_pymatgen_neighbors():
             )
         
         pmg_neighbors.find_points_in_spheres = _patched_find_points_in_spheres
-        print("Applied Windows int64 compatibility patch for pymatgen")
+        # print("Applied Windows int64 compatibility patch for pymatgen")
     except Exception as e:
         print(f"Warning: Could not apply pymatgen patch: {e}")
 
@@ -60,13 +60,15 @@ from datetime import datetime
 from tiled.client import from_uri
 
 TILED_URL = os.getenv("TILED_URL")
-TILED_API_KEY = os.getenv("API_KEY")
-SANDBOX_URL = "tst/sandbox/qas/processed/"
+TILED_API_KEY = os.environ["TILED_API_KEY"]
+XAS_SANDBOX_URL = os.environ["XAS_SANDBOX_URL"]
 
 if not TILED_URL:
     raise RuntimeError("TILED_URL is not set")
 if not TILED_API_KEY:
     raise RuntimeError("API_KEY is not set")
+if not XAS_SANDBOX_URL:
+    raise RuntimeError("XAS_SANDBOX_URL is not set")
 
 
 _tiled_queue = queue.Queue()

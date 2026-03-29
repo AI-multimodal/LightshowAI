@@ -153,3 +153,10 @@ cython_debug/
 data/
 data_source/
 
+#deployment files
+.local/
+.venv/
+__pycache__/
+*.pyc
+.env.local
+

@@ -1,0 +1,346 @@
+.
+├── README.md
+├── __init__.py
+├── data
+│   ├── Anatase.nor.csv
+│   ├── AnataseNor
+│   │   └── partition-0.parquet
+│   ├── Anatasecopy.csv
+│   ├── BaTiO3.nor
+│   │   └── partition-0.parquet
+│   ├── NiTiO3.nor
+│   │   └── partition-0.parquet
+│   ├── Rutile.nor
+│   │   └── partition-0.parquet
+│   └── SrTiO3.nor
+│       └── partition-0.parquet
+├── data_source
+│   ├── Anatase2.xdi
+│   ├── Anatase3.xdi
+│   ├── Anatase4.xdi
+│   ├── Anatase5.xdi
+│   ├── BaTiO3.nor.xdi
+│   ├── BaTiO3.nor2.xdi
+│   ├── BaTiO3.nor3.xdi
+│   ├── BaTiO3.nor5.xdi
+│   ├── NiTiO3.nor.xdi
+│   ├── Rutile.nor.xdi
+│   └── SrTiO3.nor.xdi
+├── deploy
+├── docs
+├── html
+│   ├── android-chrome-192x192.png
+│   ├── android-chrome-512x512.png
+│   ├── apple-touch-icon.png
+│   ├── assets
+│   │   ├── css
+│   │   │   ├── 0.css
+│   │   │   ├── 1.css
+│   │   │   ├── 10.css
+│   │   │   ├── 2.css
+│   │   │   ├── 3.css
+│   │   │   ├── 4.css
+│   │   │   ├── 5.css
+│   │   │   ├── 6.css
+│   │   │   ├── 7.css
+│   │   │   ├── 8.css
+│   │   │   ├── 9.css
+│   │   │   └── bnl-2025.css
+│   │   ├── fontawesome-5
+│   │   │   ├── css
+│   │   │   │   ├── all.css
+│   │   │   │   ├── all.min.css
+│   │   │   │   ├── brands.css
+│   │   │   │   ├── brands.min.css
+│   │   │   │   ├── fontawesome.css
+│   │   │   │   ├── fontawesome.min.css
+│   │   │   │   ├── regular.css
+│   │   │   │   ├── regular.min.css
+│   │   │   │   ├── solid.css
+│   │   │   │   ├── solid.min.css
+│   │   │   │   ├── svg-with-js.css
+│   │   │   │   ├── svg-with-js.min.css
+│   │   │   │   ├── v4-shims.css
+│   │   │   │   └── v4-shims.min.css
+│   │   │   └── webfonts
+│   │   │       ├── fa-brands-400.eot
+│   │   │       ├── fa-brands-400.svg
+│   │   │       ├── fa-brands-400.ttf
+│   │   │       ├── fa-brands-400.woff
+│   │   │       ├── fa-brands-400.woff2
+│   │   │       ├── fa-regular-400.eot
+│   │   │       ├── fa-regular-400.svg
+│   │   │       ├── fa-regular-400.ttf
+│   │   │       ├── fa-regular-400.woff
+│   │   │       ├── fa-regular-400.woff2
+│   │   │       ├── fa-solid-900.eot
+│   │   │       ├── fa-solid-900.svg
+│   │   │       ├── fa-solid-900.ttf
+│   │   │       ├── fa-solid-900.woff
+│   │   │       └── fa-solid-900.woff2
+│   │   ├── fontawesome-6
+│   │   │   ├── css
+│   │   │   │   ├── all.css
+│   │   │   │   ├── all.min.css
+│   │   │   │   ├── brands.css
+│   │   │   │   ├── brands.min.css
+│   │   │   │   ├── fontawesome.css
+│   │   │   │   ├── fontawesome.min.css
+│   │   │   │   ├── regular.css
+│   │   │   │   ├── regular.min.css
+│   │   │   │   ├── solid.css
+│   │   │   │   ├── solid.min.css
+│   │   │   │   ├── svg-with-js.css
+│   │   │   │   ├── svg-with-js.min.css
+│   │   │   │   ├── v4-font-face.css
+│   │   │   │   ├── v4-font-face.min.css
+│   │   │   │   ├── v4-shims.css
+│   │   │   │   ├── v4-shims.min.css
+│   │   │   │   ├── v5-font-face.css
+│   │   │   │   └── v5-font-face.min.css
+│   │   │   └── webfonts
+│   │   │       ├── fa-brands-400.ttf
+│   │   │       ├── fa-brands-400.woff2
+│   │   │       ├── fa-regular-400.ttf
+│   │   │       ├── fa-regular-400.woff2
+│   │   │       ├── fa-solid-900.ttf
+│   │   │       ├── fa-solid-900.woff2
+│   │   │       ├── fa-v4compatibility.ttf
+│   │   │       └── fa-v4compatibility.woff2
+│   │   ├── icons
+│   │   │   ├── css
+│   │   │   │   ├── font-awesome.css
+│   │   │   │   └── font-awesome.min.css
+│   │   │   ├── fonts
+│   │   │   │   ├── fontawesome-webfont.eot
+│   │   │   │   ├── fontawesome-webfont.svg
+│   │   │   │   ├── fontawesome-webfont.ttf
+│   │   │   │   ├── fontawesome-webfont.woff
+│   │   │   │   ├── fontawesome-webfont.woff2
+│   │   │   │   └── fontawesome.otf
+│   │   │   ├── less
+│   │   │   │   ├── animated.less
+│   │   │   │   ├── bordered-pulled.less
+│   │   │   │   ├── core.less
+│   │   │   │   ├── fixed-width.less
+│   │   │   │   ├── font-awesome.less
+│   │   │   │   ├── icons.less
+│   │   │   │   ├── larger.less
+│   │   │   │   ├── list.less
+│   │   │   │   ├── mixins.less
+│   │   │   │   ├── path.less
+│   │   │   │   ├── rotated-flipped.less
+│   │   │   │   ├── screen-reader.less
+│   │   │   │   ├── stacked.less
+│   │   │   │   └── variables.less
+│   │   │   └── scss
+│   │   │       ├── _animated.scss
+│   │   │       ├── _bordered-pulled.scss
+│   │   │       ├── _core.scss
+│   │   │       ├── _fixed-width.scss
+│   │   │       ├── _icons.scss
+│   │   │       ├── _larger.scss
+│   │   │       ├── _list.scss
+│   │   │       ├── _mixins.scss
+│   │   │       ├── _path.scss
+│   │   │       ├── _rotated-flipped.scss
+│   │   │       ├── _screen-reader.scss
+│   │   │       ├── _stacked.scss
+│   │   │       ├── _variables.scss
+│   │   │       └── font-awesome.scss
+│   │   ├── images
+│   │   │   ├── banner-short.jpg
+│   │   │   ├── bnl-logo-2021.svg
+│   │   │   ├── bnl-logo-white-2021.svg
+│   │   │   ├── logo-bsa-black-220px.png
+│   │   │   ├── logo-doe-black-500px.png
+│   │   │   └── logo-doe-white-500px.png
+│   │   ├── jquery
+│   │   │   └── jquery.js
+│   │   ├── jquery-cookie
+│   │   │   ├── bower.json
+│   │   │   ├── changelog.md
+│   │   │   ├── component.json
+│   │   │   ├── contributing.md
+│   │   │   ├── cookie.jquery.json
+│   │   │   ├── gruntfile.js
+│   │   │   ├── jquery.cookie.js
+│   │   │   ├── mit-license.txt
+│   │   │   ├── package.json
+│   │   │   ├── readme.md
+│   │   │   └── test
+│   │   │       ├── index.html
+│   │   │       ├── malformed_cookie.html
+│   │   │       ├── server.js
+│   │   │       └── tests.js
+│   │   ├── jquery-finger
+│   │   │   ├── bower.json
+│   │   │   ├── contributing.md
+│   │   │   ├── examples
+│   │   │   │   ├── index.html
+│   │   │   │   └── prevent.html
+│   │   │   ├── finger.jquery.json
+│   │   │   ├── gruntfile.js
+│   │   │   ├── libs
+│   │   │   │   ├── chai
+│   │   │   │   │   └── chai.js
+│   │   │   │   ├── jquery
+│   │   │   │   │   └── jquery.js
+│   │   │   │   ├── jquery-loader.js
+│   │   │   │   ├── mocha
+│   │   │   │   │   ├── mocha.css
+│   │   │   │   │   └── mocha.js
+│   │   │   │   ├── sinon
+│   │   │   │   │   └── sinon.js
+│   │   │   │   ├── sinon-chai
+│   │   │   │   │   └── sinon-chai.js
+│   │   │   │   └── virtual-pointer
+│   │   │   │       └── virtual-pointer.js
+│   │   │   ├── license-mit
+│   │   │   ├── package.json
+│   │   │   ├── readme.md
+│   │   │   ├── src
+│   │   │   │   └── jquery.finger.js
+│   │   │   └── test
+│   │   │       ├── jquery.finger.html
+│   │   │       └── jquery.finger_test.js
+│   │   ├── jquery-sidr
+│   │   │   ├── jquery.sidr.js
+│   │   │   ├── jquery.sidr.min.js
+│   │   │   └── stylesheets
+│   │   │       ├── jquery.sidr.bare.css
+│   │   │       ├── jquery.sidr.dark.css
+│   │   │       ├── jquery.sidr.dark.min.css
+│   │   │       ├── jquery.sidr.light.css
+│   │   │       └── jquery.sidr.light.min.css
+│   │   ├── jquery-ui
+│   │   │   ├── authors.txt
+│   │   │   ├── css
+│   │   │   │   ├── redmond
+│   │   │   │   │   ├── images
+│   │   │   │   │   │   ├── ui-bg_glass_75_d0e5f5_1x400.png
+│   │   │   │   │   │   ├── ui-bg_glass_85_dfeffc_1x400.png
+│   │   │   │   │   │   ├── ui-bg_glass_95_fef1ec_1x400.png
+│   │   │   │   │   │   ├── ui-bg_gloss-wave_55_5c9ccc_500x100.png
+│   │   │   │   │   │   ├── ui-bg_inset-hard_100_f5f8f9_1x100.png
+│   │   │   │   │   │   ├── ui-bg_inset-hard_100_fcfdfd_1x100.png
+│   │   │   │   │   │   ├── ui-icons_217bc0_256x240.png
+│   │   │   │   │   │   ├── ui-icons_2e83ff_256x240.png
+│   │   │   │   │   │   ├── ui-icons_469bdd_256x240.png
+│   │   │   │   │   │   ├── ui-icons_6da8d5_256x240.png
+│   │   │   │   │   │   ├── ui-icons_cd0a0a_256x240.png
+│   │   │   │   │   │   ├── ui-icons_d8e7f3_256x240.png
+│   │   │   │   │   │   └── ui-icons_f9bd01_256x240.png
+│   │   │   │   │   ├── jquery-ui.css
+│   │   │   │   │   └── jquery-ui.min.css
+│   │   │   │   ├── ui-darkness
+│   │   │   │   │   ├── images
+│   │   │   │   │   │   ├── ui-bg_glass_20_555555_1x400.png
+│   │   │   │   │   │   ├── ui-bg_glass_40_0078a3_1x400.png
+│   │   │   │   │   │   ├── ui-bg_glass_40_ffc73d_1x400.png
+│   │   │   │   │   │   ├── ui-bg_gloss-wave_25_333333_500x100.png
+│   │   │   │   │   │   ├── ui-bg_highlight-soft_80_eeeeee_1x100.png
+│   │   │   │   │   │   ├── ui-bg_inset-soft_25_000000_1x100.png
+│   │   │   │   │   │   ├── ui-bg_inset-soft_30_f58400_1x100.png
+│   │   │   │   │   │   ├── ui-icons_222222_256x240.png
+│   │   │   │   │   │   ├── ui-icons_4b8e0b_256x240.png
+│   │   │   │   │   │   ├── ui-icons_a83300_256x240.png
+│   │   │   │   │   │   ├── ui-icons_cccccc_256x240.png
+│   │   │   │   │   │   └── ui-icons_ffffff_256x240.png
+│   │   │   │   │   ├── jquery-ui.css
+│   │   │   │   │   └── jquery-ui.min.css
+│   │   │   │   └── ui-lightness
+│   │   │   │       ├── images
+│   │   │   │       │   ├── ui-bg_diagonals-thick_18_b81900_40x40.png
+│   │   │   │       │   ├── ui-bg_diagonals-thick_20_666666_40x40.png
+│   │   │   │       │   ├── ui-bg_glass_100_f6f6f6_1x400.png
+│   │   │   │       │   ├── ui-bg_glass_100_fdf5ce_1x400.png
+│   │   │   │       │   ├── ui-bg_glass_65_ffffff_1x400.png
+│   │   │   │       │   ├── ui-bg_gloss-wave_35_f6a828_500x100.png
+│   │   │   │       │   ├── ui-bg_highlight-soft_100_eeeeee_1x100.png
+│   │   │   │       │   ├── ui-bg_highlight-soft_75_ffe45c_1x100.png
+│   │   │   │       │   ├── ui-icons_222222_256x240.png
+│   │   │   │       │   ├── ui-icons_228ef1_256x240.png
+│   │   │   │       │   ├── ui-icons_ef8c08_256x240.png
+│   │   │   │       │   ├── ui-icons_ffd27a_256x240.png
+│   │   │   │       │   └── ui-icons_ffffff_256x240.png
+│   │   │   │       ├── jquery-ui.css
+│   │   │   │       └── jquery-ui.min.css
+│   │   │   ├── external
+│   │   │   │   └── jquery
+│   │   │   │       └── jquery.js
+│   │   │   ├── images
+│   │   │   │   ├── ui-icons_444444_256x240.png
+│   │   │   │   ├── ui-icons_555555_256x240.png
+│   │   │   │   ├── ui-icons_777620_256x240.png
+│   │   │   │   ├── ui-icons_777777_256x240.png
+│   │   │   │   ├── ui-icons_cc0000_256x240.png
+│   │   │   │   └── ui-icons_ffffff_256x240.png
+│   │   │   ├── index.html
+│   │   │   ├── jquery-ui.css
+│   │   │   ├── jquery-ui.js
+│   │   │   ├── jquery-ui.min.css
+│   │   │   ├── jquery-ui.min.js
+│   │   │   ├── jquery-ui.structure.css
+│   │   │   ├── jquery-ui.structure.min.css
+│   │   │   ├── jquery-ui.theme.css
+│   │   │   ├── jquery-ui.theme.min.css
+│   │   │   ├── license.txt
+│   │   │   └── package.json
+│   │   └── js
+│   │       └── bnl.js
+│   ├── bnl-web-template.zip
+│   ├── favicon-16x16.png
+│   ├── favicon-32x32.png
+│   ├── favicon.ico
+│   ├── index.html
+│   └── site.webmanifest
+├── lightshowai
+│   ├── __pycache__
+│   │   ├── compare_utils.cpython-311.pyc
+│   │   ├── models.cpython-311.pyc
+│   │   └── xas_ui.cpython-311.pyc
+│   ├── models.py
+│   ├── postprocess
+│   │   ├── __pycache__
+│   │   │   └── compare_utils.cpython-311.pyc
+│   │   ├── broaden.py
+│   │   ├── compare_utils.py
+│   │   └── shakeup.py
+│   └── xas_ui.py
+├── model_checkpoints
+│   ├── M3GNet-MP-2021.2.8-PES
+│   │   ├── LICENSE
+│   │   ├── README.md
+│   │   ├── model.json
+│   │   ├── model.pt
+│   │   └── state.pt
+│   └── xasblock
+│       └── v1.1.1
+│           ├── Co_FEFF.ckpt
+│           ├── Cr_FEFF.ckpt
+│           ├── Cu_FEFF.ckpt
+│           ├── Cu_VASP.ckpt
+│           ├── Fe_FEFF.ckpt
+│           ├── Mn_FEFF.ckpt
+│           ├── Ni_FEFF.ckpt
+│           ├── Ti_FEFF.ckpt
+│           ├── Ti_VASP.ckpt
+│           └── V_FEFF.ckpt
+├── pyproject.toml
+├── struc.txt
+└── tiled_intregation
+    ├── __pycache__
+    │   └── xdi_adapter.cpython-311.pyc
+    ├── catalog.db
+    ├── config.yml
+    ├── misc.py
+    ├── read_data_tiled.py
+    ├── remove_catalog_entries.py
+    ├── subscribe_tiled.py
+    ├── tiled_local_testing.md
+    ├── tiled_xas_subsribe_test.ipynb
+    ├── write_xdi_tiled.py
+    └── xdi_adapter.py
+
+62 directories, 281 files
