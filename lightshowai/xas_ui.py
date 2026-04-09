@@ -4,7 +4,7 @@ def _patch_pymatgen_neighbors():
     try:
         from pymatgen.optimization import neighbors as pmg_neighbors
         _original_find_points = pmg_neighbors.find_points_in_spheres
-        
+
         def _patched_find_points_in_spheres(
             all_coords, center_coords, r, pbc, lattice, tol=1e-8
         ):
@@ -12,7 +12,7 @@ def _patch_pymatgen_neighbors():
             return _original_find_points(
                 all_coords, center_coords, r, pbc, lattice, tol
             )
-        
+
         pmg_neighbors.find_points_in_spheres = _patched_find_points_in_spheres
         # print("Applied Windows int64 compatibility patch for pymatgen")
     except Exception as e:
@@ -51,7 +51,7 @@ from crystal_toolkit.helpers.layouts import (
 
 from lightshowai.models import predict
 from lightshowai.postprocess import compare_utils
-
+import redis
 import threading
 import queue
 import atexit
@@ -81,8 +81,96 @@ app = dash.Dash(prevent_initial_callbacks=True, title="OmniXAS@Lightshow.ai",
                 url_base_pathname="/omnixas/")
 server = app.server
 
-struct_component = ctc.StructureMoleculeComponent(id="st_vis", 
-                                                  show_image_button=False, 
+# visitor count code
+redis_client = redis.Redis(
+    host=os.environ.get("REDIS_HOST", "127.0.0.1"),
+    port=int(os.environ.get("REDIS_PORT", 6379)),
+    username=os.environ.get("REDIS_USER") or None,
+    password=os.environ.get("REDIS_PASSWORD") or None,
+    decode_responses=True
+)
+
+# return amount of visitors, and update count
+@server.route("/visitor-count")
+def _visitor_count():
+    try:
+        count = redis_client.incr("app:visitor_count")
+
+    except redis.RedisError as e:
+        print(f"Redis error: {e}")
+        return '{"error": "Database unavailable"}', 503, {"Content-Type": "application/json"}
+
+    return f'{{"count": {count}}}', 200, {"Content-Type": "application/json"}
+
+# Common styles
+base_font = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+
+section_header_style = {
+    "fontWeight": "700",
+    "fontSize": "16px",
+    "color": "#222",
+    "marginBottom": "14px",
+    "paddingBottom": "10px",
+    "borderBottom": "2px solid #ddd",
+    "fontFamily": base_font,
+    "letterSpacing": "0.2px"
+}
+
+column_header_style = {
+    "fontWeight": "700",
+    "fontSize": "16px",
+    "color": "#111",
+    "marginBottom": "14px",
+    "paddingBottom": "10px",
+    "borderBottom": "2px solid #ddd",
+    "fontFamily": base_font,
+    "letterSpacing": "0.1px"
+}
+
+input_label_style = {
+    "fontSize": "13px",
+    "color": "#444",
+    "marginBottom": "6px",
+    "fontWeight": "600",
+    "fontFamily": base_font
+}
+
+card_style = {
+    "backgroundColor": "white",
+    "borderRadius": "8px",
+    "padding": "18px",
+    "marginBottom": "12px",
+    "border": "1px solid #e8e8e8"
+}
+
+button_primary_style = {
+    'padding': '12px 24px',
+    'fontSize': '14px',
+    'border': 'none',
+    'borderRadius': '6px',
+    'backgroundColor': '#333',
+    'color': 'white',
+    'cursor': 'pointer',
+    'fontWeight': '600',
+    'marginRight': '8px',
+    'letterSpacing': '0.3px',
+    'fontFamily': base_font
+}
+
+button_secondary_style = {
+    'padding': '8px 16px',
+    'fontSize': '12px',
+    'border': '1px solid #ddd',
+    'borderRadius': '6px',
+    'backgroundColor': 'white',
+    'color': '#666',
+    'cursor': 'pointer',
+    'fontFamily': base_font
+}
+
+
+struct_component = ctc.StructureMoleculeComponent(id="st_vis",
+                                                  show_image_button=False,
                                                   show_export_button=False)
 
 upload_component = ctc.StructureMoleculeUploadComponent(id='file_loader')
@@ -93,7 +181,7 @@ batch_upload_component = dcc.Upload(
     children=html.Div([
         html.Div([
             'Drag & Drop or ',
-            html.A('Select File(s)', style={'color': '#333', 'cursor': 'pointer', 'fontWeight': '500', 'textDecoration': 'underline'})
+            html.A('Select File(s)', style={'color': '#222', 'cursor': 'pointer', 'fontWeight': '600', 'textDecoration': 'underline'})
         ])
     ]),
     style={
@@ -108,8 +196,8 @@ batch_upload_component = dcc.Upload(
         'backgroundColor': '#fafafa',
         'cursor': 'pointer',
         'color': '#666',
-        'fontSize': '12px',
-        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        'fontSize': '13px',
+        'fontFamily': base_font
     },
     multiple=True,  # Allow single or multiple file selection
     accept='.cif,.vasp,.poscar,.json'
@@ -118,11 +206,16 @@ batch_upload_component = dcc.Upload(
 # Store for batch processing status
 batch_processing_store = dcc.Store(id='batch_processing_store', data={'status': 'idle', 'processed': 0, 'total': 0})
 
-xas_plot = dcc.Graph(id='xas_plot')
-st_source = html.H1(id='st_source', children='No structure loaded yet')
+xas_plot = dcc.Graph(
+    id='xas_plot',
+    style={'height': '420px'},
+    config={'responsive': True}
+)
+st_source = html.Div(id='st_source', children='No structure loaded yet',
+                     style={'fontSize': '13px', 'color': '#555', 'fontWeight': '500', 'fontFamily': base_font})
 
 all_elements = ['Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu']
-ene_start = {'Ti': 4964.504, 'V': 5464.097, 'Cr': 5989.168, 'Mn': 6537.886, 
+ene_start = {'Ti': 4964.504, 'V': 5464.097, 'Cr': 5989.168, 'Mn': 6537.886,
              'Fe': 7111.23, 'Co': 7709.282, 'Ni': 8332.181, 'Cu': 8983.173}
 ene_grid = {el: np.linspace(start, start + 35, 141) for el, start in ene_start.items()}
 xas_model_names = [f'{el} FEFF' for el in all_elements] + ['Ti VASP', 'Cu VASP']
@@ -205,9 +298,9 @@ except Exception as e:
 
 def get_spectrum_match_score(predicted_spectrum, exp_spectrum, element):
     """
-    Compare predicted spectrum against experimental spectrum using 
+    Compare predicted spectrum against experimental spectrum using
     lightshow.postprocess.compare_utils.compare_between_spectra.
-    
+
     Returns comparison_range which is the energy range used for comparison.
     """
     try:
@@ -216,63 +309,63 @@ def get_spectrum_match_score(predicted_spectrum, exp_spectrum, element):
         exp_energy = np.array(exp_spectrum['energy'])
         exp_absorption = np.array(exp_spectrum['absorption'])
         expt_spectrum = np.column_stack((exp_energy, exp_absorption))
-        
+
         opt_metric = "coss_deriv"
         other_metrics = ["pearson", "spearman", "coss", "kendalltaub", "coss_deriv", "normed_wasserstein"]
-        
+
         erange = 35
         erange_threshold = 0.04
         truncation_strategy = "from_spect2"
         erange_lbound_delta = 5
-        
+
         correlations, shift = compare_utils.compare_between_spectra(
             expt_spectrum,
             ml_spectrum,
             erange=erange,
             erange_threshold=erange_threshold,
-            erange_lbound_delta=erange_lbound_delta, 
+            erange_lbound_delta=erange_lbound_delta,
             truncation_strategy=truncation_strategy,
             grid_interpolator=compare_utils.gridInterpolatorFixedSpacing(0.25),
             output_correlations=other_metrics,
             opt_strategy="grid_search_and_local_opt",
             accuracy=0.1,
-            method=opt_metric,            
+            method=opt_metric,
             norm_y_axis=True
         )
-        
+
         # Calculate the comparison range
         # The shift returned aligns ML spectrum to experimental spectrum
         # ML spectrum energy range after shift: (ene + shift)
         # The comparison uses erange (35 eV) starting from edge
-        
+
         # For ML spectrum (spect2), find where edge starts
         ml_y_normalized = (ml_spectrum[:, 1] - np.min(ml_spectrum[:, 1])) / (np.max(ml_spectrum[:, 1]) - np.min(ml_spectrum[:, 1]))
         ml_edge_idx = np.argmax(ml_y_normalized > erange_threshold)
         ml_edge_energy = ml_spectrum[ml_edge_idx, 0]
-        
+
         # The comparison range in the EXPERIMENTAL spectrum's energy scale
         # ML edge energy + shift = where ML edge aligns in exp energy scale
         comparison_start = ml_edge_energy + shift
         comparison_end = comparison_start + erange
-        
+
         # Debug output
         # print(f"=== Comparison Range Debug ===")
         # print(f"ML edge energy: {ml_edge_energy:.1f} eV")
         # print(f"Shift: {shift:.2f} eV")
         # print(f"Comparison range: {comparison_start:.1f} - {comparison_end:.1f} eV")
-        
+
         score = correlations.get(opt_metric, 0.0)
         if np.isnan(score) or np.isinf(score):
             score = 0.0
-        
+
         return {
             'score': round(float(score), 3),
-            'correlations': {k: round(float(v), 3) if not (np.isnan(v) or np.isinf(v)) else 0.0 
+            'correlations': {k: round(float(v), 3) if not (np.isnan(v) or np.isinf(v)) else 0.0
                            for k, v in correlations.items()},
             'shift': round(float(shift), 2),
             'comparison_range': (round(float(comparison_start), 1), round(float(comparison_end), 1))
         }
-        
+
     except Exception as e:
         print(f"Error in spectrum matching: {e}")
         import traceback
@@ -298,7 +391,7 @@ exp_upload_component = dcc.Upload(
     children=html.Div([
         html.Div([
             'Drag and Drop or ',
-            html.A('Select File', style={'color': '#333', 'cursor': 'pointer', 'fontWeight': '500', 'textDecoration': 'underline'})
+            html.A('Select File', style={'color': '#222', 'cursor': 'pointer', 'fontWeight': '600', 'textDecoration': 'underline'})
         ])
     ]),
     style={
@@ -313,8 +406,8 @@ exp_upload_component = dcc.Upload(
         'backgroundColor': '#fafafa',
         'cursor': 'pointer',
         'color': '#666',
-        'fontSize': '12px',
-        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        'fontSize': '13px',
+        'fontFamily': base_font
     },
     multiple=False,
     accept='.dat,.mat,.csv,.xdi'
@@ -392,7 +485,7 @@ exp_x_axis_dropdown = dcc.Dropdown(
     style={'marginBottom': '8px'}
 )
 
-# Dropdown for Y-axis column selection  
+# Dropdown for Y-axis column selection
 exp_y_axis_dropdown = dcc.Dropdown(
     id='exp_y_axis_dropdown',
     options=[],
@@ -402,108 +495,45 @@ exp_y_axis_dropdown = dcc.Dropdown(
 
 # Button to apply column selection and plot
 exp_apply_btn = html.Button(
-    "Apply & Plot", 
+    "Apply & Plot",
     id="exp_apply_btn",
     style={
-        'padding': '8px 16px',
-        'fontSize': '12px',
-        'border': 'none',
-        'borderRadius': '6px',
-        'backgroundColor': '#333',
-        'color': 'white',
-        'cursor': 'pointer',
-        'fontWeight': '500',
-        'marginRight': '8px',
-        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        **button_primary_style,
+        "width": "48%",
+        "height": "40px",
+        "padding": "0",
+        "fontSize": "13px",
+        "marginRight": "4%",
+        "display": "inline-block",
+        "boxSizing": "border-box",
+        "verticalAlign": "top"
+    }
+)
+
+clear_exp_btn = html.Button(
+    "Clear",
+    id="clear_exp_btn",
+    style={
+        **button_secondary_style,
+        "width": "48%",
+        "height": "40px",
+        "padding": "0",
+        "fontSize": "13px",
+        "marginRight": "0",
+        "display": "inline-block",
+        "boxSizing": "border-box",
+        "verticalAlign": "top"
     }
 )
 
 # Display for uploaded experimental file info
 exp_file_info = html.Div(id='exp_file_info', children='No experimental spectrum loaded',
                          style={
-                             'fontSize': '11px', 
-                             'color': '#888', 
+                             'fontSize': '11px',
+                             'color': '#888',
                              'marginTop': '10px',
                              'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
                          })
-
-# Button to clear experimental spectrum
-clear_exp_btn = html.Button("Clear", id="clear_exp_btn", 
-                            style={
-                                'fontSize': '12px',
-                                'padding': '8px 16px',
-                                'border': '1px solid #ddd',
-                                'borderRadius': '6px',
-                                'backgroundColor': 'white',
-                                'color': '#666',
-                                'cursor': 'pointer',
-                                'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-                            })
-
-# Common styles
-base_font = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-
-section_header_style = {
-    "fontWeight": "600",
-    "fontSize": "13px",
-    "color": "#333",
-    "marginBottom": "14px",
-    "paddingBottom": "10px",
-    "borderBottom": "1px solid #eee",
-    "fontFamily": base_font,
-    "letterSpacing": "0.2px"
-}
-
-column_header_style = {
-    "fontWeight": "600",
-    "fontSize": "13px",
-    "color": "#333",
-    "marginBottom": "14px",
-    "paddingBottom": "10px",
-    "borderBottom": "1px solid #eee",
-    "fontFamily": base_font,
-    "letterSpacing": "0.2px"
-}
-
-input_label_style = {
-    "fontSize": "12px",
-    "color": "#666",
-    "marginBottom": "6px",
-    "fontWeight": "500",
-    "fontFamily": base_font
-}
-
-card_style = {
-    "backgroundColor": "white",
-    "borderRadius": "8px",
-    "padding": "18px",
-    "marginBottom": "12px",
-    "border": "1px solid #e8e8e8"
-}
-
-button_primary_style = {
-    'padding': '10px 20px',
-    'fontSize': '13px',
-    'border': 'none',
-    'borderRadius': '6px',
-    'backgroundColor': '#333',
-    'color': 'white',
-    'cursor': 'pointer',
-    'fontWeight': '500',
-    'marginRight': '8px',
-    'fontFamily': base_font
-}
-
-button_secondary_style = {
-    'padding': '8px 16px',
-    'fontSize': '12px',
-    'border': '1px solid #ddd',
-    'borderRadius': '6px',
-    'backgroundColor': 'white',
-    'color': '#666',
-    'cursor': 'pointer',
-    'fontFamily': base_font
-}
 
 tiled_poll_interval = dcc.Interval(
     id="tiled_poll_interval",
@@ -513,23 +543,6 @@ tiled_poll_interval = dcc.Interval(
 
 tiled_live_store = dcc.Store(id="tiled_live_store", data=None)
 
-
-mpid_search_btn = html.Button(
-    "Search MP IDs",
-    id="mpid_search_btn",
-    style={
-        'padding': '8px 16px',
-        'fontSize': '12px',
-        'border': 'none',
-        'borderRadius': '6px',
-        'backgroundColor': '#333',
-        'color': 'white',
-        'cursor': 'pointer',
-        'fontWeight': '500',
-        'marginTop': '8px',
-        'fontFamily': base_font
-    }
-)
 
 def parse_mpid_list(value):
     if not value:
@@ -560,22 +573,22 @@ onmixas_layout = html.Div([
     Columns([
         # Column 1: Input Controls
         Column(
-            html.Div([
+            [
                 # Experimental Spectrum Upload Card
                 html.Div([
                     html.Div("Upload Experimental Spectrum", style=section_header_style),
-                    
+
                     html.Div("Material Name (optional):", style=input_label_style),
                     exp_material_name_input,
-                    
+
                     html.Div(
                         "Accepted formats: .csv, .dat, .mat, .xdi",
                         style={"fontSize": "11px", "color": "#999", "marginTop": "10px", "marginBottom": "8px"}
                     ),
-                    
+
                     exp_upload_component,
                     exp_column_definition_area,
-                    
+
                     html.Div(
                         id='exp_column_selection_area',
                         children=[
@@ -597,22 +610,22 @@ onmixas_layout = html.Div([
                         ],
                         style={"display": "none"}
                     ),
-                    
+
                     exp_file_info,
                     exp_raw_data_store,
                     exp_columns_store,
                     exp_spectrum_store,
                 ], style=card_style),
-                
+
                 # Load Structure Card
                 html.Div([
                     html.Div("Load Structure", style=section_header_style),
-                    
+
                     # Multiple structure search
                     html.Div("Materials Project IDs:", style={**input_label_style, "marginBottom": "8px"}),
                     mpid_list_input,
                     mpid_search_btn,
-                    
+
                     # Combined single/multiple file upload
                     html.Div("Upload structure file(s):", style={**input_label_style, "marginBottom": "4px"}),
                     html.Div(
@@ -621,52 +634,50 @@ onmixas_layout = html.Div([
                     ),
                     batch_upload_component,
                     batch_processing_store,
-                    
+
                     # Processing status
                     html.Div(id='batch_status', children='', style={
-                        "fontSize": "11px", 
-                        "color": "#666", 
+                        "fontSize": "11px",
+                        "color": "#666",
                         "marginTop": "8px",
                         "fontFamily": base_font
                     }),
-                    
+
                     html.Div(st_source, style={"marginTop": "10px"}),
                 ], style=card_style),
-                
-                # XAS Model Prediction Card
-                html.Div([
-                    html.Div("XAS Model Prediction", style=section_header_style),
-                    Loading(absorber_dropdown),
-                ], style=card_style),
-                
-            ], style={"width": "100%"}),
-            narrow=True,
+
+
+            ],
+            style={"flex": "1", "minWidth": "150px", "padding": "0 6px"}
         ),
-        
+
         # Column 2: Crystal Structure Viewer
         Column(
-            html.Div([
+            [
                 html.Div([
                     html.Div("Crystal Structure Viewer", style=column_header_style),
-                    Loading(struct_component.layout(size="100%")),
-                ], style={
-                    "backgroundColor": "white",
-                    "borderRadius": "8px",
-                    "padding": "18px",
-                    "border": "1px solid #e8e8e8",
-                    "minHeight": "500px"
-                })
-            ]),
-            style={"flex": "1", "minWidth": "400px", "padding": "0 6px"}
+                    html.Div(
+                        Loading(struct_component.layout(size="100%")),
+                        style={'minHeight': '200px', 'width': '100%', 'position': 'relative'}
+                    )
+                ], style=card_style),
+
+                # XAS Model Prediction Card
+                html.Div([
+                    html.Div("XAS Machine Learning Model", style=section_header_style),
+                    Loading(absorber_dropdown),
+                ], style=card_style)
+            ],
+            style={"flex": "1.5", "padding": "0 6px", "minWidth": "150px", "alignSelf": "flex-start"}
         ),
-        
+
         # Column 3: Spectrum Analysis
         Column(
             html.Div([
                 html.Div([
                     html.Div("XANES Spectrum Analysis", style=column_header_style),
                     xas_plot,
-                    
+
                     # Energy shift slider
                     html.Div([
                         html.Div([
@@ -690,11 +701,10 @@ onmixas_layout = html.Div([
                             html.Span("0", style={"fontSize": "10px", "color": "#999", "position": "absolute", "left": "50%", "transform": "translateX(-50%)", "fontFamily": base_font}),
                             html.Span("+50 eV", style={"fontSize": "10px", "color": "#999", "fontFamily": base_font}),
                         ], style={"display": "flex", "justifyContent": "space-between", "position": "relative", "marginTop": "-5px"}),
-                        html.Button("Reset Shift", id="reset_shift_btn", style={**button_secondary_style, "marginTop": "10px", "fontSize": "11px", "padding": "6px 14px"}),
-                    ], id='energy_shift_container', style={"padding": "0 10px"}),
-                    
+                        html.Button("Reset Shift", id="reset_shift_btn", style={**button_secondary_style, "marginTop": "10px"})], id='energy_shift_container'),
+
                     html.Hr(style={"margin": "20px 0", "border": "none", "borderTop": "1px solid #eee"}),
-                    
+
                     html.Button("Download POSCAR and Spectrum", id="download_btn", style={
                         **button_primary_style,
                         "width": "100%",
@@ -704,7 +714,7 @@ onmixas_layout = html.Div([
                         "borderRadius": "6px"
                     }),
                     dcc.Download(id="download_sink"),
-                    
+
                     # Matching Results Section
                     html.Div([
                         html.Div([
@@ -713,16 +723,7 @@ onmixas_layout = html.Div([
                                 "fontSize": "13px",
                                 "color": "#333",
                             }),
-                            html.Button("Clear All", id="clear_scores_btn", style={
-                                "fontSize": "10px",
-                                "padding": "4px 10px",
-                                "border": "1px solid #ddd",
-                                "borderRadius": "4px",
-                                "backgroundColor": "white",
-                                "color": "#666",
-                                "cursor": "pointer",
-                                "marginLeft": "10px"
-                            }),
+                            html.Button("Clear All", id="clear_scores_btn", style={**button_secondary_style, "marginLeft": "10px"}),
                         ], style={
                             "display": "flex",
                             "alignItems": "center",
@@ -733,7 +734,7 @@ onmixas_layout = html.Div([
                             "borderBottom": "1px solid #eee"
                         }),
                         html.Div(id='matching_results_table', children=[
-                            html.Div("Upload experimental spectrum and load structures to see matching scores", 
+                            html.Div("Upload experimental spectrum and load structures to see matching scores",
                                     style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"})
                         ]),
                         structure_scores_store,
@@ -741,23 +742,21 @@ onmixas_layout = html.Div([
                         selected_spectra_store,
                         sort_metric_store,
                     ]),
-                    
-                ], style={
-                    "backgroundColor": "white",
-                    "borderRadius": "8px",
-                    "padding": "18px",
-                    "border": "1px solid #e8e8e8"
-                })
+
+                ], style=card_style)
             ]),
-            style={"flex": "1", "minWidth": "400px", "padding": "0 6px"}
+            style={"flex": "1.5", "minWidth": "150px", "padding": "0 6px"}
         ),
     ],
     desktop_only=False,
     centered=False),
 ], style={
-    "backgroundColor": "#f5f5f5",
+    "alignItems": "flex-start",
+    "flexWrap": "wrap",
+    "background": "#f5f5f5",
     "minHeight": "100vh",
-    "padding": "12px",
+    "padding": "24px",
+    "paddingBottom": "16px",
     "fontFamily": base_font
 })
 
@@ -772,43 +771,43 @@ def parse_file_columns(contents, filename):
     """
     if contents is None:
         return None
-    
+
     content_type, content_string = contents.split(',')
     decoded = b64decode(content_string)
-    
+
     try:
         if filename is None:
             filename = "unknown.dat"
-        
+
         ext = pathlib.Path(filename).suffix.lower()
         print(f"=== DEBUG: Parsing file '{filename}' with extension '{ext}'")
-        
+
         columns = []
         data = []
-        
+
         auto_x_col = 0
         auto_y_col = 1
-        
+
         if ext in ['.csv', '.dat', '.txt', '.xdi']:
             text = decoded.decode('utf-8').replace('\r\n', '\n').replace('\r', '\n')
             lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
-            
+
             comment_lines = []
             data_lines = []
-            
+
             for line in lines:
                 if line.startswith(('#', '%', '!')):
                     comment_lines.append(line)
                 else:
                     data_lines.append(line)
-            
+
             if len(data_lines) == 0:
                 raise ValueError("No data lines found in file")
-            
+
             xdi_columns = {}
             energy_col_candidates = []
             absorption_col_candidates = []
-            
+
             for comment in comment_lines:
                 xdi_match = re.match(r'#\s*Column\.(\d+):\s*(.+)', comment, re.IGNORECASE)
                 if xdi_match:
@@ -816,19 +815,19 @@ def parse_file_columns(contents, filename):
                     col_name = xdi_match.group(2).strip()
                     xdi_columns[col_num] = col_name
                     print(f"=== DEBUG: Found XDI column {col_num}: '{col_name}'")
-                    
+
                     col_lower = col_name.lower()
                     if any(term in col_lower for term in ['energy', ' e ', 'ev', 'photon']):
                         energy_col_candidates.append(col_num)
-                    
+
                     if any(term in col_lower for term in ['norm', 'absorption', 'abs', 'mu', 'flat']):
                         absorption_col_candidates.append(col_num)
-            
+
             if comment_lines and not xdi_columns:
                 last_comment = comment_lines[-1]
                 header_text = last_comment.lstrip('#').strip()
                 header_parts = header_text.split()
-                
+
                 if len(header_parts) >= 2 and ':' not in header_text:
                     print(f"=== DEBUG: Found inline header: {header_parts}")
                     for i, name in enumerate(header_parts):
@@ -838,17 +837,17 @@ def parse_file_columns(contents, filename):
                             energy_col_candidates.append(i)
                         if name_lower in ['norm', 'flat', 'abs', 'mu', 'absorption']:
                             absorption_col_candidates.append(i)
-            
+
             first_line = data_lines[0]
-            
+
             if ',' in first_line:
                 delimiter = ','
             else:
                 delimiter = None
-            
+
             first_parts = first_line.split(delimiter) if delimiter else first_line.split()
             num_columns = len(first_parts)
-            
+
             try:
                 float(first_parts[0].strip())
                 header = None
@@ -859,9 +858,9 @@ def parse_file_columns(contents, filename):
                 if not xdi_columns:
                     for i, name in enumerate(header):
                         xdi_columns[i] = name
-            
+
             data = [[] for _ in range(num_columns)]
-            
+
             for line in data_lines[start_idx:]:
                 parts = line.split(delimiter) if delimiter else line.split()
                 for i, part in enumerate(parts):
@@ -870,7 +869,7 @@ def parse_file_columns(contents, filename):
                             data[i].append(float(part.strip()))
                         except ValueError:
                             pass
-            
+
             for i in range(num_columns):
                 if i in xdi_columns:
                     col_name = xdi_columns[i]
@@ -878,7 +877,7 @@ def parse_file_columns(contents, filename):
                     col_name = header[i]
                 else:
                     col_name = f"Column {i+1}"
-                
+
                 sample_values = data[i][:5] if len(data[i]) >= 5 else data[i]
                 columns.append({
                     'index': i,
@@ -886,10 +885,10 @@ def parse_file_columns(contents, filename):
                     'num_values': len(data[i]),
                     'sample_values': sample_values
                 })
-            
+
             if energy_col_candidates:
                 auto_x_col = energy_col_candidates[0]
-            
+
             if absorption_col_candidates:
                 for candidate in absorption_col_candidates:
                     col_name = xdi_columns.get(candidate, '').lower()
@@ -900,14 +899,14 @@ def parse_file_columns(contents, filename):
                     auto_y_col = absorption_col_candidates[0]
             elif len(columns) > 1:
                 auto_y_col = 1
-        
+
         elif ext == '.mat':
             try:
                 from scipy.io import loadmat
                 mat_data = loadmat(io.BytesIO(decoded))
-                
+
                 data_keys = [k for k in mat_data.keys() if not k.startswith('__')]
-                
+
                 for i, key in enumerate(data_keys):
                     arr = mat_data[key]
                     if isinstance(arr, np.ndarray) and arr.size > 1:
@@ -920,33 +919,33 @@ def parse_file_columns(contents, filename):
                             'sample_values': sample_values
                         })
                         data.append(flat_arr)
-                        
+
                         key_lower = key.lower()
                         if any(term in key_lower for term in ['energy', 'e', 'ev']):
                             auto_x_col = i
                         if any(term in key_lower for term in ['absorption', 'abs', 'mu', 'norm']):
                             auto_y_col = i
-                        
+
             except ImportError:
                 raise ValueError("scipy is required to read .mat files")
-        
+
         else:
             raise ValueError(f"Unsupported file format: {ext}")
-        
+
         if len(columns) < 2:
             raise ValueError("File must have at least 2 columns for X and Y axes")
-        
+
         auto_x_col = min(auto_x_col, len(columns) - 1)
         auto_y_col = min(auto_y_col, len(columns) - 1)
-        
+
         if auto_x_col == auto_y_col and len(columns) > 1:
             auto_y_col = 1 if auto_x_col == 0 else 0
-        
+
         print(f"=== DEBUG: Found {len(columns)} columns")
         for col in columns:
             print(f"  Column {col['index']}: {col['name']} ({col['num_values']} values)")
         print(f"=== DEBUG: Auto-selected X={auto_x_col}, Y={auto_y_col}")
-        
+
         return {
             'columns': columns,
             'data': data,
@@ -954,7 +953,7 @@ def parse_file_columns(contents, filename):
             'auto_x_col': auto_x_col,
             'auto_y_col': auto_y_col
         }
-        
+
     except Exception as e:
         print(f"Error parsing file columns: {e}")
         import traceback
@@ -1037,41 +1036,41 @@ def load_spectrum_from_tiled(tiled_event):
 def handle_file_upload(contents, clear_clicks, filename):
     """Handle file upload - parse columns and populate dropdowns."""
     ctx = dash.callback_context
-    
+
     if not ctx.triggered:
         raise PreventUpdate
-    
+
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
+
     hidden_style = {"display": "none"}
     visible_style = {"display": "block"}
-    
+
     if trigger_id == 'clear_exp_btn':
-        return (None, None, [], [], None, None, hidden_style, [], 
+        return (None, None, [], [], None, None, hidden_style, [],
                 'No experimental spectrum loaded', None, None, '')
-    
+
     if contents is None:
         raise PreventUpdate
-    
+
     result = parse_file_columns(contents, filename)
-    
+
     if result is None or 'error' in result:
         error_msg = result.get('error', 'Failed to parse file') if result else 'Failed to parse file'
         return (None, None, [], [], None, None, hidden_style, [],
                 html.Span(f"Error: {error_msg}", style={'color': 'red'}),
                 dash.no_update, dash.no_update, dash.no_update)
-    
+
     columns = result['columns']
     options = [{'label': f"{col['name']} ({col['num_values']} pts)", 'value': col['index']} for col in columns]
-    
+
     default_x = result.get('auto_x_col', 0)
     default_y = result.get('auto_y_col', 1 if len(columns) > 1 else 0)
-    
+
     max_visible_rows = 5
     table_height = "auto" if len(columns) <= max_visible_rows else f"{max_visible_rows * 40 + 30}px"
-    
+
     col_definition = html.Div([
-        html.Div(f"Detected {len(columns)} columns (edit names if needed):", 
+        html.Div(f"Detected {len(columns)} columns (edit names if needed):",
                  style={"fontSize": "12px", "marginBottom": "6px", "marginTop": "10px"}),
         html.Div([
             html.Table([
@@ -1101,7 +1100,7 @@ def handle_file_upload(contents, clear_clicks, filename):
                         ),
                         html.Td(col['num_values'], style={"padding": "4px 8px", "fontSize": "11px", "verticalAlign": "middle"}),
                         html.Td(
-                            ", ".join([f"{v:.2f}" for v in col['sample_values'][:3]]) + "...", 
+                            ", ".join([f"{v:.2f}" for v in col['sample_values'][:3]]) + "...",
                             style={"padding": "4px 8px", "fontSize": "10px", "color": "#666", "verticalAlign": "middle"}
                         ),
                     ]) for col in columns
@@ -1113,17 +1112,16 @@ def handle_file_upload(contents, clear_clicks, filename):
             "border": "1px solid #ddd",
             "marginBottom": "10px"
         }),
-        
-        html.Button("Update Column Names", id="exp_update_col_names_btn", 
-                   style={"fontSize": "11px", "padding": "4px 8px", "marginBottom": "10px"})
+
+        html.Button("Update Column Names", id="exp_update_col_names_btn", style={**button_secondary_style, "width": "100%", "height": "40px", "padding": "0", "fontSize": "13px", "marginBottom": "10px", "boxSizing": "border-box"})
     ])
-    
+
     x_col_name = columns[default_x]['name'] if default_x < len(columns) else "Column 1"
     y_col_name = columns[default_y]['name'] if default_y < len(columns) else "Column 2"
     info_text = f"File loaded: {filename} (auto-selected: X={x_col_name}, Y={y_col_name})"
-    
+
     material_name_from_file = pathlib.Path(filename).stem if filename else ""
-    
+
     return (result, columns, options, options, default_x, default_y, visible_style, col_definition,
             html.Span(info_text, style={'color': 'blue'}),
             dash.no_update, dash.no_update, material_name_from_file)
@@ -1143,13 +1141,13 @@ def update_column_names(n_clicks, new_names, columns):
     """Update column names when user edits them."""
     if n_clicks is None or columns is None:
         raise PreventUpdate
-    
+
     for i, new_name in enumerate(new_names):
         if i < len(columns):
             columns[i]['name'] = new_name.strip() if new_name else f"Column {i+1}"
-    
+
     options = [{'label': f"{col['name']} ({col['num_values']} pts)", 'value': col['index']} for col in columns]
-    
+
     return columns, options, options, html.Span("Column names updated!", style={'color': 'green'})
 
 
@@ -1168,33 +1166,33 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
     """Apply column selection and create the spectrum data for plotting."""
     if n_clicks is None or raw_data is None:
         raise PreventUpdate
-    
+
     if x_col_idx is None or y_col_idx is None:
         return None, html.Span("Please select both X and Y axis columns", style={'color': 'red'})
-    
+
     try:
         data = raw_data['data']
         filename = raw_data['filename']
-        
+
         x_data = np.array(data[x_col_idx])
         y_data = np.array(data[y_col_idx])
-        
+
         min_len = min(len(x_data), len(y_data))
         x_data = x_data[:min_len]
         y_data = y_data[:min_len]
-        
+
         if len(x_data) < 2:
             return None, html.Span("Not enough data points", style={'color': 'red'})
-        
+
         sort_idx = np.argsort(x_data)
         x_data = x_data[sort_idx]
         y_data = y_data[sort_idx]
-        
+
         x_label = columns[x_col_idx]['name']
         y_label = columns[y_col_idx]['name']
-        
+
         display_name = material_name if material_name and material_name.strip() else filename
-        
+
         result = {
             'energy': x_data.tolist(),
             'absorption': y_data.tolist(),
@@ -1203,12 +1201,12 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
             'x_label': x_label,
             'y_label': y_label
         }
-        
+
         x_min, x_max = x_data.min(), x_data.max()
         info_text = f"✓ {display_name} ({len(x_data)} points, {x_label}: {x_min:.1f}-{x_max:.1f})"
-        
+
         return result, html.Span(info_text, style={'color': 'green'})
-        
+
     except Exception as e:
         print(f"Error applying column selection: {e}")
         return None, html.Span(f"Error: {str(e)}", style={'color': 'red'})
@@ -1220,7 +1218,7 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
     State(struct_component.id(), "data"),
     State('absorber', 'value'),
 )
-def download_xas_prediction(n_clicks, st_data, el_type):  
+def download_xas_prediction(n_clicks, st_data, el_type):
     if st_data is None:
         raise PreventUpdate
     el, theory = el_type.split(' ')
@@ -1418,9 +1416,9 @@ def parse_structure_file(contents, filename):
     try:
         content_type, content_string = contents.split(',')
         decoded = b64decode(content_string)
-        
+
         ext = pathlib.Path(filename).suffix.lower()
-        
+
         if ext in ['.cif']:
             # CIF format
             from pymatgen.io.cif import CifParser
@@ -1455,7 +1453,7 @@ def parse_structure_file(contents, filename):
                     st = poscar.structure
                 except:
                     raise ValueError(f"Could not parse file format: {ext}")
-        
+
         return st
     except Exception as e:
         print(f"Error parsing structure file {filename}: {e}")
@@ -1487,17 +1485,17 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     """
     if contents_list is None or len(contents_list) == 0:
         raise PreventUpdate
-    
+
     if existing_scores is None:
         existing_scores = []
-    
+
     if sort_metric is None:
         sort_metric = 'coss_deriv'
-    
+
     has_exp_data = exp_data is not None and 'energy' in exp_data and 'absorption' in exp_data
-    
+
     element = el_type.split(' ')[0]
-    
+
     # Process each uploaded file
     successful = 0
     failed = 0
@@ -1505,42 +1503,42 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     last_st_dict = None
     last_filename = None
     comparison_range = None
-    
+
     for contents, filename in zip(contents_list, filenames_list):
         try:
             # Parse the structure file
             st = parse_structure_file(contents, filename)
-            
+
             if st is None:
                 failed += 1
                 failed_files.append(filename)
                 continue
-            
+
             # Check if structure contains the absorbing element
             if element not in st.composition:
                 print(f"Structure {filename} does not contain {element}, skipping...")
                 failed += 1
                 failed_files.append(f"{filename} (no {element})")
                 continue
-            
+
             # Generate XAS spectrum
             specs = predict(st, element, el_type.split(' ')[1])
-            
+
             if len(specs) == 0:
                 failed += 1
                 failed_files.append(f"{filename} (no spectrum)")
                 continue
-            
+
             # Calculate average spectrum
             specs_array = np.array(list(specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
             energy = ene_grid[element].tolist()
-            
+
             # Get structure ID from filename (remove extension)
             structure_id = pathlib.Path(filename).stem
-            
+
             # Compare with experimental data if available
-            
+
             if has_exp_data:
                 match_result = get_spectrum_match_score(predicted_spectrum, exp_data, element)
             else:
@@ -1550,14 +1548,14 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                     'shift': 0.0,
                     'comparison_range': None
                 }
-            
+
             # Check if this structure already exists - preserve selection state
             old_entry = next((s for s in existing_scores if s['structure_id'] == structure_id), None)
             was_selected = old_entry.get('selected', False) if old_entry else False
-            
+
             # Remove old entry if exists
             existing_scores = [s for s in existing_scores if s['structure_id'] != structure_id]
-            
+
             # Add new score entry
             existing_scores.append({
                 'structure_id': structure_id,
@@ -1570,29 +1568,29 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                 'element': element,
                 'selected': was_selected
             })
-            
+
             # Keep track of comparison range from last successful processing
             if match_result['comparison_range'] is not None:
                 comparison_range = match_result['comparison_range']
-            
+
             # Store last structure for display
             st_dict = st.as_dict()
             st_dict['xas'] = specs
             last_st_dict = st_dict
             last_filename = filename
-            
+
             successful += 1
-            
+
         except Exception as e:
             print(f"Error processing {filename}: {e}")
             import traceback
             traceback.print_exc()
             failed += 1
             failed_files.append(filename)
-    
+
     # Sort scores by current metric
     existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
-    
+
     # Build status message
     if successful > 0 and failed == 0:
         status_msg = html.Span(f"✓ Processed {successful} structure(s) successfully", style={'color': 'green'})
@@ -1603,7 +1601,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
         ])
     else:
         status_msg = html.Span(f"✗ Failed to process all {failed} file(s)", style={'color': 'red'})
-    
+
     # Update source text
     if successful == 1:
         source_text = f"Current structure: {last_filename}"
@@ -1611,7 +1609,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
         source_text = f"Batch loaded: {successful} structures"
     else:
         source_text = "No structures loaded"
-    
+
     return (
         existing_scores,
         build_scores_table(existing_scores, sort_metric),
@@ -1630,10 +1628,10 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
     """
     element = el_type.split(" ")[0]
     fig = go.Figure()
-    
+
     has_exp_data = exp_data is not None and 'energy' in exp_data and 'absorption' in exp_data
     has_selected = selected_spectra is not None and len(selected_spectra) > 0
-    
+
     if has_selected:
         num_selected = len(selected_spectra)
         title = f'Comparing {num_selected} Structure{"s" if num_selected > 1 else ""} with Experimental'
@@ -1652,28 +1650,28 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
         title = f'K-edge XANES Spectrum for the selected {element} atom'
         if has_exp_data:
             title += " (with Experimental)"
-    
+
     exp_energy = None
     exp_absorption = None
     if has_exp_data:
         exp_energy = np.array(exp_data['energy'])
         exp_absorption = np.array(exp_data['absorption'])
-    
+
     colors = ['#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
-    
+
     if has_selected:
         for idx, spec_entry in enumerate(selected_spectra):
             spec_data = np.array(spec_entry['spectrum'])
             spec_energy = np.array(spec_entry['energy'])
             spec_shift = spec_entry.get('shift', 0.0)
             structure_id = spec_entry['structure_id']
-            
+
             spec_energy_shifted = spec_energy + spec_shift
-            
+
             if has_exp_data and len(exp_absorption) > 0:
                 pred_range = np.max(spec_data) - np.min(spec_data)
                 exp_range = np.max(exp_absorption) - np.min(exp_absorption)
-                
+
                 if pred_range > 0 and exp_range > 0:
                     spec_normalized = (spec_data - np.min(spec_data)) / pred_range
                     spec_scaled = spec_normalized * exp_range + np.min(exp_absorption)
@@ -1681,7 +1679,7 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
                     spec_scaled = spec_data
             else:
                 spec_scaled = spec_data
-            
+
             color = colors[idx % len(colors)]
             fig.add_trace(go.Scatter(
                 x=spec_energy_shifted,
@@ -1690,16 +1688,16 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
                 name=f'{structure_id}',
                 line=dict(color=color, width=2),
             ))
-    
+
     elif predicted_spectrum is not None:
         ene = ene_grid[element]
         ene_shifted = ene + energy_shift
-        
+
         predicted_was_normalized = False
         if has_exp_data and len(exp_absorption) > 0:
             pred_range = np.max(predicted_spectrum) - np.min(predicted_spectrum)
             exp_range = np.max(exp_absorption) - np.min(exp_absorption)
-            
+
             if pred_range > 0 and exp_range > 0:
                 pred_normalized = (predicted_spectrum - np.min(predicted_spectrum)) / pred_range
                 pred_scaled = pred_normalized * exp_range + np.min(exp_absorption)
@@ -1708,17 +1706,17 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
                 pred_scaled = predicted_spectrum
         else:
             pred_scaled = predicted_spectrum
-        
+
         if current_structure_id:
             pred_name = f'{current_structure_id}'
             if predicted_was_normalized:
                 pred_name += ' (normalized)'
         else:
             pred_name = 'Predicted (normalized)' if predicted_was_normalized else 'Predicted'
-        
+
         if energy_shift != 0:
             pred_name += f' [{energy_shift:+.1f} eV]'
-        
+
         fig.add_trace(go.Scatter(
             x=ene_shifted,
             y=pred_scaled,
@@ -1726,7 +1724,7 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
             name=pred_name,
             line=dict(color='#636EFA', width=2),
         ))
-    
+
     if has_exp_data:
         exp_display_name = exp_data.get('material_name', exp_data.get('filename', 'Experimental'))
         fig.add_trace(go.Scatter(
@@ -1736,14 +1734,14 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
             name=f'Exp: {exp_display_name}',
             marker=dict(color='#EF553B', size=4),
         ))
-    
+
     if has_exp_data:
         x_axis_label = exp_data.get('x_label', 'Energy (eV)')
         y_axis_label = exp_data.get('y_label', 'Absorption')
     else:
         x_axis_label = "Energy (eV)"
         y_axis_label = "Absorption"
-    
+
     layout_config = dict(
         title=title,
         xaxis_title=x_axis_label,
@@ -1759,7 +1757,7 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
         ),
         hovermode='x unified'
     )
-    
+
     # Apply comparison range to x-axis to zoom into the comparison region
     # Only apply if we have both experimental data and a valid comparison range
     if has_exp_data and comparison_range is not None and len(comparison_range) == 2:
@@ -1774,7 +1772,7 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
                 title=x_axis_label
             )
             print(f"=== Plot x-axis range set to: {x_start - padding:.1f} - {x_end + padding:.1f} eV ===")
-    
+
     fig.update_layout(**layout_config)
     return fig
 
@@ -1792,23 +1790,23 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
 def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comparison_range, structure_scores, el_type, structure_source) -> Structure:
     if st_data is None and exp_data is None:
         raise PreventUpdate
-    
+
     current_structure_id = None
     if structure_source and isinstance(structure_source, str):
         if ":" in structure_source:
             current_structure_id = structure_source.split(":")[-1].strip()
         else:
             current_structure_id = structure_source
-    
+
     selected_spectra = None
     if structure_scores:
         selected_spectra = [s for s in structure_scores if s.get('selected', False) and 'spectrum' in s]
         if len(selected_spectra) == 0:
             selected_spectra = None
-    
+
     predicted_spectrum = None
     no_element = False
-    
+
     if selected_spectra is None and st_data is not None:
         specs = st_data.get('xas', {})
         if len(specs) == 0:
@@ -1816,10 +1814,10 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
         else:
             specs_array = np.array(list(specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
-    
+
     fig = build_figure_with_exp(
-        predicted_spectrum, exp_data, el_type, 
-        is_average=True, no_element=no_element, sel_mismatch=False, 
+        predicted_spectrum, exp_data, el_type,
+        is_average=True, no_element=no_element, sel_mismatch=False,
         energy_shift=energy_shift or 0, comparison_range=comparison_range,
         selected_spectra=selected_spectra, current_structure_id=current_structure_id
     )
@@ -1839,14 +1837,14 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
 def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, comparison_range, structure_source) -> Structure:
     if st_data is None:
         raise PreventUpdate
-    
+
     current_structure_id = None
     if structure_source and isinstance(structure_source, str):
         if ":" in structure_source:
             current_structure_id = structure_source.split(":")[-1].strip()
         else:
             current_structure_id = structure_source
-    
+
     specs = st_data['xas']
     element = el_type.split(' ')[0]
     shift = energy_shift or 0
@@ -1861,7 +1859,7 @@ def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, com
         el_sel = sel[0]['tooltip'].split('(')[0].strip()
         pos_sel = np.array([float(x) for x in sel[0]['tooltip'].split('(')[1].split(')')[0].split(',')])
         frac_pos_sel = st.lattice.get_fractional_coords(pos_sel)
-        dist = st.lattice.get_all_distances(frac_pos_sel, st.frac_coords)
+        dist = st.lattice.get_all_distances(frac_pos_sel, st.frac_coords)[0]
         i_site = np.argmin(dist)
         assert dist[i_site] < 0.01
         assert st[i_site].specie.symbol == el_sel
@@ -1919,7 +1917,7 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    
+
     trigger_id = ctx.triggered[0]['prop_id']
     import json
     try:
@@ -1928,7 +1926,7 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
         clicked_metric = id_dict['metric']
     except Exception:
         raise PreventUpdate
-    
+
     return clicked_metric
 
 
@@ -1949,62 +1947,62 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
 def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
-    
+
     if not ctx.triggered:
         raise PreventUpdate
-    
+
     trigger_id = ctx.triggered[0]['prop_id']
-    
+
     if existing_scores is None:
         existing_scores = []
-    
+
     if sort_metric is None:
         sort_metric = 'coss_deriv'
-    
+
     if 'clear_scores_btn' in trigger_id:
-        return [], html.Div("Upload experimental spectrum and load structures to see matching scores", 
+        return [], html.Div("Upload experimental spectrum and load structures to see matching scores",
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
-    
+
     if 'spectrum-checkbox' in trigger_id:
         for i, score_entry in enumerate(existing_scores):
             if i < len(checkbox_values):
                 score_entry['selected'] = bool(checkbox_values[i])
         existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
         return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     if 'sort_metric_store' in trigger_id:
         existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
         return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     has_exp_data = exp_data is not None and 'energy' in exp_data and 'absorption' in exp_data
-    
+
     if not has_exp_data:
         if len(existing_scores) == 0:
-            return existing_scores, html.Div("Upload experimental spectrum first to enable matching", 
+            return existing_scores, html.Div("Upload experimental spectrum first to enable matching",
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
         else:
             return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     if st_data is None:
         if len(existing_scores) == 0:
-            return existing_scores, html.Div("Load a structure to see matching scores", 
+            return existing_scores, html.Div("Load a structure to see matching scores",
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
         else:
             return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     specs = st_data.get('xas', {})
     if len(specs) == 0:
         if len(existing_scores) == 0:
-            return existing_scores, html.Div("No spectrum available for matching", 
+            return existing_scores, html.Div("No spectrum available for matching",
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
         else:
             return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     specs_array = np.array(list(specs.values()))
     predicted_spectrum = specs_array.mean(axis=0)
     element = el_type.split(' ')[0]
     energy = ene_grid[element].tolist()
-    
+
     structure_id = None
     if structure_source and isinstance(structure_source, str):
         if structure_source.startswith("Current structure:"):
@@ -2012,14 +2010,14 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
 
     if structure_id is None:
         return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
-    
+
     match_result = get_spectrum_match_score(predicted_spectrum, exp_data, element)
-    
+
     old_entry = next((s for s in existing_scores if s['structure_id'] == structure_id), None)
     was_selected = old_entry.get('selected', False) if old_entry else False
-    
+
     updated_scores = [s for s in existing_scores if s['structure_id'] != structure_id]
-    
+
     updated_scores.append({
         'structure_id': structure_id,
         'score': match_result['score'],
@@ -2031,7 +2029,7 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         'element': element,
         'selected': was_selected
     })
-    
+
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
     return updated_scores, build_scores_table(updated_scores, sort_metric), match_result['comparison_range']
 
@@ -2040,25 +2038,25 @@ def sort_scores_by_metric(scores, metric):
     """Sort scores list by the given metric. For normed_wasserstein, lower is better (sort ascending)."""
     if not scores:
         return scores
-    
+
     reverse = metric != 'normed_wasserstein'
-    
+
     def sort_key(entry):
         correlations = entry.get('correlations', {})
         val = correlations.get(metric, 0.0)
         if val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
             return -999 if reverse else 999
         return val
-    
+
     return sorted(scores, key=sort_key, reverse=reverse)
 
 
 def build_scores_table(scores, sort_metric='coss_deriv'):
     """Build the HTML table for displaying structure scores with all metrics as sortable columns."""
     if not scores:
-        return html.Div("No scores yet", 
+        return html.Div("No scores yet",
                        style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"})
-    
+
     base_header_style = {
         "padding": "5px 4px",
         "textAlign": "right",
@@ -2069,14 +2067,14 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
         "backgroundColor": "#fafafa",
         "whiteSpace": "nowrap",
     }
-    
+
     active_header_style = {
         **base_header_style,
         "color": "#333",
         "borderBottom": "2px solid #333",
         "backgroundColor": "#f0f0f0",
     }
-    
+
     table_cell_style = {
         "padding": "5px 4px",
         "fontSize": "11px",
@@ -2084,19 +2082,19 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
         "borderBottom": "1px solid #eee",
         "textAlign": "right",
     }
-    
+
     header_cells = [
         html.Th("", style={**base_header_style, "width": "28px", "textAlign": "center"}),
         html.Th("#", style={**base_header_style, "width": "22px", "textAlign": "center"}),
         html.Th("Structure", style={**base_header_style, "textAlign": "left", "minWidth": "70px"}),
         html.Th("Shift", style={**base_header_style, "width": "50px"}),
     ]
-    
+
     for metric in ALL_METRICS:
         is_active = (metric == sort_metric)
         style = active_header_style if is_active else base_header_style
         arrow = " ▼" if is_active and metric != 'normed_wasserstein' else (" ▲" if is_active else "")
-        
+
         header_cells.append(
             html.Th(
                 html.Button(
@@ -2107,7 +2105,7 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
                         "background": "none",
                         "cursor": "pointer",
                         "fontWeight": "700" if is_active else "600",
-                        "fontSize": "10px",
+                        "fontSize": "11px",
                         "color": "#333" if is_active else "#666",
                         "padding": "0",
                         "fontFamily": base_font,
@@ -2119,15 +2117,15 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
                 style=style,
             )
         )
-    
+
     header = html.Tr(header_cells)
-    
+
     rows = []
     for rank, entry in enumerate(scores):
         correlations = entry.get('correlations', {})
         shift = entry.get('shift', 0.0)
         is_selected = entry.get('selected', False)
-        
+
         row_cells = [
             html.Td(
                 dcc.Checklist(
@@ -2141,9 +2139,9 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
             ),
             html.Td(rank + 1, style={**table_cell_style, "color": "#999", "fontWeight": "500", "textAlign": "center"}),
             html.Td(entry['structure_id'], style={
-                **table_cell_style, 
-                "fontFamily": "monospace", 
-                "fontSize": "10px", 
+                **table_cell_style,
+                "fontFamily": "monospace",
+                "fontSize": "10px",
                 "textAlign": "left",
                 "maxWidth": "90px",
                 "overflow": "hidden",
@@ -2151,16 +2149,16 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
                 "whiteSpace": "nowrap",
             }),
             html.Td(f"{shift:+.1f}", style={
-                **table_cell_style, 
+                **table_cell_style,
                 "fontSize": "10px",
                 "color": "#666"
             }),
         ]
-        
+
         for metric in ALL_METRICS:
             val = correlations.get(metric, None)
             is_sort_col = (metric == sort_metric)
-            
+
             if val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
                 display_val = "—"
                 score_color = "#999"
@@ -2180,7 +2178,7 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
                         score_color = "#ffc107"
                     else:
                         score_color = "#dc3545"
-            
+
             cell_style = {
                 **table_cell_style,
                 "fontWeight": "700" if is_sort_col else "400",
@@ -2188,11 +2186,11 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
                 "fontSize": "11px" if is_sort_col else "10px",
                 "backgroundColor": "#f8f8f8" if is_sort_col else "transparent",
             }
-            
+
             row_cells.append(html.Td(display_val, style=cell_style))
-        
+
         rows.append(html.Tr(row_cells))
-    
+
     table = html.Table(
         [html.Thead(header), html.Tbody(rows)],
         style={
@@ -2202,12 +2200,12 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
             "tableLayout": "auto",
         }
     )
-    
+
     return html.Div(table, style={
         "overflowX": "auto",
         "fontSize": "11px",
     })
-    
+
 
 ctc.register_crystal_toolkit(app=app, layout=onmixas_layout)
 

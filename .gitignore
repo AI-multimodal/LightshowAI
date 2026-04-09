@@ -1,5 +1,6 @@
 .DS_Store
 .python-version
+.LightshowAI/
 pyrightconfig.json
 
 *.pyc
@@ -160,3 +161,6 @@ __pycache__/
 *.pyc
 .env.local
 
+
+# sqlite file for visitor count
+visitor_count.db

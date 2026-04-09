@@ -6,7 +6,8 @@ authors = [
     {"name" = "Christopher Kelly", "email" = "ckelly@bnl.gov"},
     {"name" = "Sairam Sri Vatsavai", "email" = "ssrivatsa@bnl.gov"},
     {"name" = "Xiaohui Qu", "email" = "xiaqu@bnl.gov"},
-    {"name" = "Chuntian Cao", "email" = "caochuntian@gmail.com"}
+    {"name" = "Chuntian Cao", "email" = "caochuntian@gmail.com"},
+    {"name" = "Xuance Jiang", "email" = "xuance@ucsb.edu"}
 ]
 
 description = "Lightshowai is a web user interface to predict the x-ray absorption near edge structure (XANES) spectra using neural network models. "

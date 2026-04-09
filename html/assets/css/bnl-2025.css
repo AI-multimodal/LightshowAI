@@ -4348,8 +4348,71 @@
 			
 		}
 
+		/* TAB CHANGES for looks */
+			.ui-widget.ui-widget-content {
+				border: none !important;
+				background: transparent !important;
+				padding: 0 !important;
+			}
 
+			.tabs,
+			.ui-tabs-panel {
+				padding: 0 !important;
+				margin-bottom: 0 !important;
+				border: none !important;
+			}
 
+			.ui-tabs .ui-tabs-nav {
+				background: transparent !important;
+				border: none !important;
+				border-bottom: 2px solid #ddd !important;
+				border-radius: 0 !important;
+				display: flex !important;
+				justify-content: center;
+				padding: 0 !important;
+			}
+
+			.ui-tabs .ui-tabs-nav li {
+				background: none !important;
+				border: none !important;
+				margin: 0 0 -2px 0 !important;
+				padding: 0 !important;
+			}
+
+			.ui-tabs .ui-tabs-nav li a {
+				padding: 4px 30px 12px !important;
+				font: 500 16px inherit !important;
+				color: #666 !important;
+				border-bottom: 3px solid transparent !important;
+				background: transparent !important;
+				transition: color 0.2s, border-color 0.2s;
+			}
+
+			.ui-tabs .ui-tabs-nav li a:hover,
+			.ui-tabs .ui-tabs-nav li.ui-tabs-active a {
+				color: #1A5B7D !important;
+				outline: none;
+			}
+
+			.ui-tabs .ui-tabs-nav li.ui-tabs-active a {
+				border-bottom-color: #1A5B7D !important;
+			}
+
+			/* styling for visitor count to work on mobile */
+			.desktop-counter {
+				position: absolute; 
+				right: 20px; 
+				top: 0px; 
+				z-index: 10;
+			}
+			@media screen and (max-width: 768px) {
+				.desktop-counter {
+					position: static;
+					text-align: center;
+					padding-top: 10px;
+					padding-bottom: 5px;
+				}
+			}
 /*	----------------------------------------------------------------------------------------------------------------
 		END OF STYLE SHEET
 	----------------------------------------------------------------------------------------------------------------	*/

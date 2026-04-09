@@ -9,6 +9,10 @@
     ProxyPass        /omnixas/ http://127.0.0.1:8443/omnixas/
     ProxyPassReverse /omnixas/ http://127.0.0.1:8443/omnixas/
 
+    # Proxy the visitor counter endpoint exposed by the Dash/Flask server
+    ProxyPass        /visitor-count http://127.0.0.1:8443/visitor-count
+    ProxyPassReverse /visitor-count http://127.0.0.1:8443/visitor-count
+
     Header always set X-Frame-Options "SAMEORIGIN"
 
     DocumentRoot {{PROJECT_ROOT}}/html
