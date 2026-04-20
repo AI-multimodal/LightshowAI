@@ -996,9 +996,13 @@ def load_spectrum_from_tiled(tiled_event):
     spec = tiled_event["spectrum"]
     print(list(spec.keys()))
 
+    # Ensure incoming data supports vectorized math (tiled may hand us plain lists)
+    i0 = np.asarray(spec["i0"], dtype=float)
+    it = np.asarray(spec["it"], dtype=float)
+
     spectrum_payload = {
-        "energy": spec["energy eV"],
-        "absorption": spec["flat"],
+        "energy": spec["energy"],
+        "absorption": np.log(i0 / it),
         "filename": tiled_event["key"],
         "material_name": tiled_event["metadata"].get("Sample.name", ""),
         "x_label": "energy eV",
@@ -1314,7 +1318,7 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, exp_data, exist
                 failed += 1
                 failed_ids.append(f"{mpid} (no {element})")
                 continue
-
+            print(f"Predicting spectrum for {mpid} with element {element} and theory {theory}")
             specs = predict(st, element, theory)
             if len(specs) == 0:
                 failed += 1
@@ -1401,6 +1405,7 @@ def decorate_structure_with_xas(st: Structure, el_type):
     absorbing_site, spectroscopy_type = el_type.split(' ')
     st_dict = st.as_dict()
     if absorbing_site in st.composition:
+        print("XAS Spectrum generated for structure:", st, absorbing_site, spectroscopy_type)
         specs = predict(st, absorbing_site, spectroscopy_type)
         st_dict['xas'] = specs
     else:
@@ -1522,6 +1527,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                 continue
 
             # Generate XAS spectrum
+            print("XAS Spectrum generated for structure:", st, element, el_type.split(' ')[1])
             specs = predict(st, element, el_type.split(' ')[1])
 
             if len(specs) == 0:
