@@ -5,7 +5,62 @@ from scipy import optimize
 import numpy as np
 import scipy
 from typing import Tuple
+import pandas as pd
 
+def _find_columns(df_columns, aliases):
+    # detects columns
+    return [col for col in df_columns if str(col).strip().lower() in aliases]
+
+def average_xas(energy, mu, interval=0.25):
+    """
+    Averages the XAS spectrum data over a fixed energy interval.
+    For example, interval=0.5 will average all points within each 0.5 eV block.
+    """
+    binned_energy = np.round(energy / interval) * interval
+    df = pd.DataFrame({'E': binned_energy, 'mu': mu})
+    final_df = df.groupby('E', as_index=False).mean()
+    
+    return final_df.to_numpy()
+
+def spectrum_from_new_csv(df: pd.DataFrame, mode: str = "transmission", apply_binning: bool = True, bin_interval: float = 0.25):
+    # from a csv file which contains raw data
+    energy_cols = _find_columns(df.columns, ["energy", "e", "ev"])
+    i0_cols = _find_columns(df.columns, ["i0", "io"])
+    if_cols = _find_columns(df.columns, ["iff", "if", "fluor"])
+    it_cols = _find_columns(df.columns, ["it", "trans"])
+    
+    if not energy_cols or not i0_cols:
+        raise ValueError("CSV must contain at least 'energy' and 'i0' columns.")
+
+    energy = pd.to_numeric(df[energy_cols[0]], errors="coerce").to_numpy(float)
+    i0 = pd.to_numeric(df[i0_cols[0]], errors="coerce").to_numpy(float)
+ 
+    valid_i0 = i0 > 1e-6
+    mode = (mode or "fluorescence").lower()
+    
+    if mode == "fluorescence" and if_cols:
+        signal = pd.to_numeric(df[if_cols[0]], errors="coerce").to_numpy(float)
+        mu = np.divide(signal, i0, out=np.full_like(signal, np.nan), where=valid_i0)
+        y_label = "Fluorescence (iff / i0)"
+        
+    elif mode == "transmission" and it_cols:
+        it = pd.to_numeric(df[it_cols[0]], errors="coerce").to_numpy(float)
+        ratio = np.divide(it, i0, out=np.full_like(it, np.nan), where=valid_i0)
+        mu = -np.log(np.clip(ratio, 1e-12, None))
+        y_label = "Transmission -ln(it / i0)"
+    else:
+        raise ValueError(f"Could not find valid columns for mode: {mode}")
+
+    mask = np.isfinite(energy) & np.isfinite(mu)
+    energy, mu = energy[mask], mu[mask]
+
+    if apply_binning:
+        spec = average_xas(energy, mu, interval=bin_interval)
+    else:
+        spec = pd.DataFrame({'E': np.round(energy, 2), 'mu': mu}).groupby('E', as_index=False).mean().to_numpy()
+
+    return spec, {"x_label": "Energy (eV)", "y_label": y_label, "mode": mode}
+    
 def smoothSpectrum(spect, smooth_width_eV=1.0):
     """
     Smooth the spectrum over the provided smoothing window size
@@ -36,12 +91,15 @@ def smoothSpectrum(spect, smooth_width_eV=1.0):
     mu_grid = ius(grid)
         
     window_pts = int(round(smooth_width_eV / dE))
-    window_pts = window_pts + (1 if (window_pts %2 == 0) else 0)
+    window_pts = window_pts + (1 if (window_pts % 2 == 0) else 0)
+
+    if window_pts <= 3:
+        window_pts = 5
 
     mu_smooth = savgol_filter(mu_grid, window_pts, polyorder=3)
     return np.vstack( (grid, mu_smooth) ).T    
 
-def normalizeSpectrum(spec, output_curves=False, preedge_range: Tuple[float,float] | None = None, postedge_range: Tuple[float,float] | None = None, flatten=False):    
+def normalizeSpectrum(spec, output_curves=False, preedge_range: Tuple[float,float] | None = None, postedge_range: Tuple[float,float] | None = None, flatten=True):    
     """
     Normalize the spectrum
     Inputs:

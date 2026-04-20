@@ -120,31 +120,23 @@
 
 			<!-- lightshowai -->
 			<div id="app-tab" style="padding: 0;">
-				<script>
-					document.addEventListener('DOMContentLoaded', () => {
-						const iframe = document.getElementById('dash-app');
-						let currentHeight = window.innerHeight * 0.80;
+					<script>
+						document.addEventListener('DOMContentLoaded', () => {
+							const iframe = document.getElementById('dash-app');
+							let height = window.innerHeight * 0.8;
+							iframe.style.height = `${height}px`;
 
-						const expandDashIframe = () => {
-							try {
-								const doc = iframe.contentDocument;
-								if (!doc) return;
-								const scrollH = doc.body.scrollHeight;
-								if (scrollH > currentHeight) {
-									currentHeight = scrollH;
-									iframe.style.height = `${currentHeight}px`;
-								}
-							} catch (e) { }
-						};
+							window.forceDashResize = () => {
+								try {
+									const doc = iframe.contentDocument || iframe.contentWindow.document;
+									const newH = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+									if (newH > height) iframe.style.height = `${height = newH}px`;
+								} catch (e) {}
+							};
 
-						window.forceDashResize = expandDashIframe;
-
-						iframe.addEventListener('load', () => {
-							iframe.style.height = `${currentHeight}px`;
-							setInterval(expandDashIframe, 200);
+							setInterval(window.forceDashResize, 200);
 						});
-					});
-				</script>
+					</script>
 				<iframe id="dash-app" src="/omnixas/" scrolling="no"
 					style="width: 100%; border: 0; display: block; overflow: hidden; height: 80vh;"></iframe>
 			</div>

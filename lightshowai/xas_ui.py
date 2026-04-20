@@ -51,6 +51,12 @@ from crystal_toolkit.helpers.layouts import (
 
 from lightshowai.models import predict
 from lightshowai.postprocess import compare_utils
+from lightshowai.postprocess.normalize import normalizeSpectrum, spectrum_from_new_csv
+from lightshowai.postprocess.shakeup import loadShakeupKernel, shakeup as shakeupSpectrum
+
+_DAT_PATH = pathlib.Path(__file__).parent / "postprocess" / "Rutile-spfcn_model.dat"
+_Aw = loadShakeupKernel(str(_DAT_PATH))
+
 import redis
 import threading
 import queue
@@ -168,6 +174,43 @@ button_secondary_style = {
     'fontFamily': base_font
 }
 
+_radio_base = {
+    'flex': '1', 'height': '40px', 'padding': '0',
+    'cursor': 'pointer', 'fontSize': '13px',
+    'fontFamily': base_font, 'boxSizing': 'border-box'
+}
+
+radio_left_active_style = {
+    **_radio_base,
+    'border': '1px solid #333', 'borderRight': 'none',
+    'backgroundColor': '#333', 'color': 'white',
+    'borderRadius': '6px 0 0 6px', 'fontWeight': '600'
+}
+
+radio_left_inactive_style = {
+    **_radio_base,
+    'border': '1px solid #ddd', 'borderRight': 'none',
+    'backgroundColor': 'white', 'color': '#666',
+    'borderRadius': '6px 0 0 6px', 'fontWeight': '400'
+}
+
+radio_right_active_style = {
+    **_radio_base,
+    'border': '1px solid #333',
+    'backgroundColor': '#333', 'color': 'white',
+    'borderRadius': '0 6px 6px 0', 'fontWeight': '600'
+}
+
+radio_right_inactive_style = {
+    **_radio_base,
+    'border': '1px solid #ddd',
+    'backgroundColor': 'white', 'color': '#666',
+    'borderRadius': '0 6px 6px 0', 'fontWeight': '400'
+}
+
+radio_row_style = {'display': 'flex', 'width': '100%', 'marginBottom': '15px'}
+
+radio_label_style = {'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}
 
 struct_component = ctc.StructureMoleculeComponent(id="st_vis",
                                                   show_image_button=False,
@@ -203,13 +246,15 @@ batch_upload_component = dcc.Upload(
     accept='.cif,.vasp,.poscar,.json'
 )
 
+shakeup_store = dcc.Store(id='shakeup-store', data='no')
+
 # Store for batch processing status
 batch_processing_store = dcc.Store(id='batch_processing_store', data={'status': 'idle', 'processed': 0, 'total': 0})
 
 xas_plot = dcc.Graph(
     id='xas_plot',
     style={'height': '420px'},
-    config={'responsive': True}
+    config={'responsive': True, 'doubleClick': 'reset'}
 )
 st_source = html.Div(id='st_source', children='No structure loaded yet',
                      style={'fontSize': '13px', 'color': '#555', 'fontWeight': '500', 'fontFamily': base_font})
@@ -234,6 +279,25 @@ METRIC_SHORT_NAMES = {
     "normed_wasserstein": "Wasser.",
 }
 
+# radio button helpers
+def _radio_btn_styles(is_left_active, left_extra=None, right_extra=None):
+    left  = {**(radio_left_active_style   if is_left_active else radio_left_inactive_style),  **(left_extra  or {})}
+    right = {**(radio_right_inactive_style if is_left_active else radio_right_active_style),   **(right_extra or {})}
+    return left, right
+
+def _radio_callback(btn_left_id, btn_right_id, val_left, val_right, current_val):
+    """
+    Resolve the new toggle value given which button was clicked.
+    Returns the new value string.
+    """
+    ctx = dash.callback_context
+    if ctx.triggered:
+        tid = ctx.triggered[0]['prop_id'].split('.')[0]
+        if tid == btn_left_id:
+            return val_left
+        if tid == btn_right_id:
+            return val_right
+    return current_val
 
 def on_new_tiled_spectrum(update):
     print("Tiled update received:", update)
@@ -425,7 +489,7 @@ exp_material_name_input = dcc.Input(
         'border': '1px solid #ddd',
         'fontSize': '12px',
         'boxSizing': 'border-box',
-        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        'fontFamily': base_font
     }
 )
 
@@ -502,6 +566,7 @@ exp_apply_btn = html.Button(
         "width": "48%",
         "height": "40px",
         "padding": "0",
+        "marginTop": "6px",
         "fontSize": "13px",
         "marginRight": "4%",
         "display": "inline-block",
@@ -518,6 +583,7 @@ clear_exp_btn = html.Button(
         "width": "48%",
         "height": "40px",
         "padding": "0",
+        "marginTop": "6px",
         "fontSize": "13px",
         "marginRight": "0",
         "display": "inline-block",
@@ -532,7 +598,7 @@ exp_file_info = html.Div(id='exp_file_info', children='No experimental spectrum 
                              'fontSize': '11px',
                              'color': '#888',
                              'marginTop': '10px',
-                             'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                             'fontFamily': base_font
                          })
 
 tiled_poll_interval = dcc.Interval(
@@ -604,6 +670,54 @@ onmixas_layout = html.Div([
                                 ], style={"display": "inline-block", "width": "48%", "verticalAlign": "top"}),
                             ]),
                             html.Div([
+                                html.Span("Data Format", style=radio_label_style),
+                                dcc.Store(id='exp-data-type-store', data='norm'),
+                                html.Div([
+                                    html.Button("Normalized", id='btn-format-norm', style=radio_left_active_style),
+                                    html.Button("Raw",        id='btn-format-raw',  style=radio_right_inactive_style),
+                                ], style=radio_row_style)
+                            ]),
+
+                            dcc.Store(id='exp-raw-type-store', data='transmission'),
+                                html.Div(
+                                id='raw-type-container',
+                                children=[
+                                    html.Span("Measurement Type", style=radio_label_style),
+                                    html.Div([
+                                        html.Button("Fluorescent",  id="btn-type-fluor",  style=radio_left_inactive_style),
+                                        html.Button("Transmission", id="btn-type-trans",  style=radio_right_active_style),
+                                    ], style=radio_row_style),
+                                    
+                                    dcc.Store(id='exp-binning-store', data=0.25),
+                                    html.Span("Bin Interval (eV)", style={'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}),
+                                    html.Div([
+                                        dcc.Slider(
+                                            id='binning-interval-slider',
+                                            min=0,
+                                            max=1.0,
+                                            step=0.05,
+                                            value=0.25,
+                                            marks={0: {'label': 'Raw', 'style': {'fontSize': '10px'}},
+                                                0.25: {'label': '0.25', 'style': {'fontSize': '10px'}},
+                                                0.5: {'label': '0.5', 'style': {'fontSize': '10px'}},
+                                                1.0: {'label': '1.0 eV', 'style': {'fontSize': '10px'}}},
+                                            tooltip={"placement": "bottom", "always_visible": False},
+                                            updatemode='mouseup',
+                                            included=False,
+                                        ),
+                                    ], style={'marginBottom': '15px', 'marginTop': '10px'}),
+
+                                    dcc.Store(id='exp-flatten-store', data='yes'),
+                                    html.Span('Flatten Spectrum', style=radio_label_style),
+                                    html.Div([
+                                        html.Button('Yes', id='btn-flatten-yes', style=radio_left_active_style),
+                                        html.Button('No',  id='btn-flatten-no',  style=radio_right_inactive_style),
+                                    ], style=radio_row_style),
+                                ],
+                                style={'display': 'none'}
+                            ),
+
+                            html.Div([
                                 exp_apply_btn,
                                 clear_exp_btn,
                             ], style={"marginTop": "12px"}),
@@ -666,9 +780,21 @@ onmixas_layout = html.Div([
                 html.Div([
                     html.Div("XAS Machine Learning Model", style=section_header_style),
                     Loading(absorber_dropdown),
+                    shakeup_store,
+                    html.Div(
+                        id='shakeup-toggle-container',
+                        children=[
+                            html.Span("Shake-up Correction", style={**radio_label_style, 'marginTop': '12px'}),
+                            html.Div([
+                                html.Button("On",  id='btn-shakeup-on',  style=radio_left_inactive_style),
+                                html.Button("Off", id='btn-shakeup-off', style=radio_right_active_style),
+                            ], style={**radio_row_style, 'marginBottom': '0'}),
+                        ],
+                        style={'display': 'none'}
+                    ),
                 ], style=card_style)
-            ],
-            style={"flex": "1.5", "padding": "0 6px", "minWidth": "150px", "alignSelf": "flex-start"}
+            ], 
+            style={"flex": "1", "padding": "0 6px", "minWidth": "150px", "alignSelf": "flex-start"}
         ),
 
         # Column 3: Spectrum Analysis
@@ -934,24 +1060,33 @@ def parse_file_columns(contents, filename):
 
         if len(columns) < 2:
             raise ValueError("File must have at least 2 columns for X and Y axes")
+        
+        for col in columns:
+            name_lower = str(col['name']).lower().strip()
+            if name_lower in ['energy', 'e', 'ev']:
+                auto_x_col = col['index']
+            elif name_lower in ['iff', 'if', 'fluor', 'it', 'trans', 'absorption', 'mu']:
+                auto_y_col = col['index']
 
         auto_x_col = min(auto_x_col, len(columns) - 1)
         auto_y_col = min(auto_y_col, len(columns) - 1)
-
         if auto_x_col == auto_y_col and len(columns) > 1:
             auto_y_col = 1 if auto_x_col == 0 else 0
 
         print(f"=== DEBUG: Found {len(columns)} columns")
-        for col in columns:
-            print(f"  Column {col['index']}: {col['name']} ({col['num_values']} values)")
         print(f"=== DEBUG: Auto-selected X={auto_x_col}, Y={auto_y_col}")
-
+        
+        col_names_lower = [str(col['name']).lower().strip() for col in columns]
+        is_new_csv = ("energy" in col_names_lower and "i0" in col_names_lower and 
+                      any(c in col_names_lower for c in ["iff", "it", "ir"]))
+        
         return {
             'columns': columns,
             'data': data,
             'filename': filename,
             'auto_x_col': auto_x_col,
-            'auto_y_col': auto_y_col
+            'auto_y_col': auto_y_col,
+            'detected_format': 'new_xas_csv' if is_new_csv else 'generic_csv'
         }
 
     except Exception as e:
@@ -1018,6 +1153,75 @@ def load_spectrum_from_tiled(tiled_event):
 
     return spectrum_payload, info, label
 
+@app.callback(
+    Output('exp-data-type-store', 'data'),
+    Output('btn-format-norm', 'style'),
+    Output('btn-format-raw', 'style'),
+    Output('raw-type-container', 'style'),
+    Input('btn-format-norm', 'n_clicks'),
+    Input('btn-format-raw', 'n_clicks'),
+    State('exp-data-type-store', 'data'),
+    prevent_initial_call=False,
+)
+def update_format_toggle(_, __, current_val):
+    current_val = _radio_callback('btn-format-norm', 'btn-format-raw', 'norm', 'raw', current_val)
+    left, right = _radio_btn_styles(current_val == 'norm')
+    return current_val, left, right, {'display': 'none' if current_val == 'norm' else 'block'}
+
+
+@app.callback(
+    Output('exp-flatten-store', 'data'),
+    Output('btn-flatten-yes', 'style'),
+    Output('btn-flatten-no', 'style'),
+    Input('btn-flatten-yes', 'n_clicks'),
+    Input('btn-flatten-no', 'n_clicks'),
+    State('exp-flatten-store', 'data'),
+    prevent_initial_call=False,
+)
+def update_flatten_mode(_, __, current_val):
+    current_val = _radio_callback('btn-flatten-yes', 'btn-flatten-no', 'yes', 'no', current_val)
+    left, right = _radio_btn_styles(current_val == 'yes')
+    return current_val, left, right
+
+
+@app.callback(
+    Output('exp-raw-type-store', 'data'),
+    Output('btn-type-fluor', 'style'),
+    Output('btn-type-trans', 'style'),
+    Input('btn-type-fluor', 'n_clicks'),
+    Input('btn-type-trans', 'n_clicks'),
+    State('exp-raw-type-store', 'data'),
+    prevent_initial_call=False,
+)
+def update_measurement_mode(_, __, current_val):
+    current_val = _radio_callback('btn-type-fluor', 'btn-type-trans', 'fluorescence', 'transmission', current_val)
+    left, right = _radio_btn_styles(current_val == 'fluorescence')
+    return current_val, left, right
+
+
+@app.callback(
+    Output('shakeup-store', 'data'),
+    Output('btn-shakeup-on', 'style'),
+    Output('btn-shakeup-off', 'style'),
+    Input('btn-shakeup-on', 'n_clicks'),
+    Input('btn-shakeup-off', 'n_clicks'),
+    State('shakeup-store', 'data'),
+    prevent_initial_call=False,
+)
+def update_shakeup_toggle(_, __, current_val):
+    current_val = _radio_callback('btn-shakeup-on', 'btn-shakeup-off', 'yes', 'no', current_val)
+    left, right = _radio_btn_styles(current_val == 'yes')
+    return current_val, left, right
+
+@app.callback(
+    Output('shakeup-toggle-container', 'style'),
+    Input('absorber', 'value'),
+    prevent_initial_call=False
+)
+def toggle_shakeup_visibility(el_type):
+    if el_type == 'Ti VASP':
+        return {'display': 'block'}
+    return {'display': 'none'}
 
 @app.callback(
     Output('exp_raw_data_store', 'data'),
@@ -1154,6 +1358,13 @@ def update_column_names(n_clicks, new_names, columns):
 
     return columns, options, options, html.Span("Column names updated!", style={'color': 'green'})
 
+@app.callback(
+    Output('exp-binning-store', 'data'),
+    Input('binning-interval-slider', 'value'),
+    prevent_initial_call=False
+)
+def update_binning_mode(slider_val):
+    return slider_val if slider_val is not None else 0.25
 
 @app.callback(
     Output('exp_spectrum_store', 'data'),
@@ -1164,39 +1375,69 @@ def update_column_names(n_clicks, new_names, columns):
     State('exp_x_axis_dropdown', 'value'),
     State('exp_y_axis_dropdown', 'value'),
     State('exp_material_name', 'value'),
+    State('exp-data-type-store', 'data'),
+    State('exp-raw-type-store', 'data'), 
+    State('exp-binning-store', 'data'),
+    State('exp-flatten-store', 'data'),
     prevent_initial_call=True
 )
-def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, material_name):
+def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, material_name, data_type, raw_mode, bin_mode, flattenmode):
     """Apply column selection and create the spectrum data for plotting."""
     if n_clicks is None or raw_data is None:
         raise PreventUpdate
-
-    if x_col_idx is None or y_col_idx is None:
-        return None, html.Span("Please select both X and Y axis columns", style={'color': 'red'})
-
+    
     try:
-        data = raw_data['data']
         filename = raw_data['filename']
+        display_name = material_name.strip() if material_name and material_name.strip() else filename
+        
+        apply_flat = (flattenmode == 'yes')
 
-        x_data = np.array(data[x_col_idx])
-        y_data = np.array(data[y_col_idx])
+        if raw_data.get('detected_format') == 'new_xas_csv' and data_type == 'raw':
+            df = pd.DataFrame({col['name']: raw_data['data'][col['index']] for col in columns})
+            
+            apply_bin = bin_mode > 0 if isinstance(bin_mode, (int, float)) else False
+            spec, meta = spectrum_from_new_csv(df, mode=raw_mode, apply_binning=apply_bin, bin_interval=bin_mode if apply_bin else 0.25)           
+            spec = normalizeSpectrum(spec, flatten=apply_flat)
+            
+            x_data = spec[:, 0]
+            y_data = spec[:, 1]
+            x_label = meta['x_label']
+            y_label = f"Normalized μ(E) [{meta['mode'].capitalize()}]"
 
-        min_len = min(len(x_data), len(y_data))
-        x_data = x_data[:min_len]
-        y_data = y_data[:min_len]
+        else:
+            if x_col_idx is None or y_col_idx is None:
+                return None, html.Span("Please select both X and Y axis columns", style={'color': 'red'})
+            
+            print(f"=== DEBUG: Manual plotting. X={x_col_idx}, Y={y_col_idx} ===")
+            data = raw_data['data']
+            x_data = np.array(data[x_col_idx], dtype=float)
+            y_data = np.array(data[y_col_idx], dtype=float)
+            
+            min_len = min(len(x_data), len(y_data))
+            x_data = x_data[:min_len]
+            y_data = y_data[:min_len]
+            
+            mask = np.isfinite(x_data) & np.isfinite(y_data)
+            x_data = x_data[mask]
+            y_data = y_data[mask]
+            
+            if len(x_data) < 2:
+                return None, html.Span("Not enough data points", style={'color': 'red'})
+            
+            sort_idx = np.argsort(x_data)
+            x_data = x_data[sort_idx]
+            y_data = y_data[sort_idx]
+            
+            x_label = columns[x_col_idx]['name']
+            y_label = columns[y_col_idx]['name']
 
-        if len(x_data) < 2:
-            return None, html.Span("Not enough data points", style={'color': 'red'})
-
-        sort_idx = np.argsort(x_data)
-        x_data = x_data[sort_idx]
-        y_data = y_data[sort_idx]
-
-        x_label = columns[x_col_idx]['name']
-        y_label = columns[y_col_idx]['name']
-
-        display_name = material_name if material_name and material_name.strip() else filename
-
+            if data_type == 'raw':
+                spec = np.column_stack((x_data, y_data))
+                spec = normalizeSpectrum(spec, flatten=apply_flat)
+                x_data = spec[:, 0]
+                y_data = spec[:, 1]
+                y_label = f"Normalized μ(E) [{y_label}]"
+        
         result = {
             'energy': x_data.tolist(),
             'absorption': y_data.tolist(),
@@ -1205,16 +1446,18 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
             'x_label': x_label,
             'y_label': y_label
         }
-
-        x_min, x_max = x_data.min(), x_data.max()
+        
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
         info_text = f"✓ {display_name} ({len(x_data)} points, {x_label}: {x_min:.1f}-{x_max:.1f})"
-
+        
+        print(f"=== DEBUG: Plot ready. Output contains {len(x_data)} items. ===")
         return result, html.Span(info_text, style={'color': 'green'})
 
     except Exception as e:
         print(f"Error applying column selection: {e}")
+        import traceback
+        traceback.print_exc()
         return None, html.Span(f"Error: {str(e)}", style={'color': 'red'})
-
 
 @app.callback(
     Output("download_sink", "data"),
@@ -1263,12 +1506,13 @@ def download_xas_prediction(n_clicks, st_data, el_type):
     Input("mpid_search_btn", "n_clicks"),
     State("mpid_list_input", "value"),
     State('absorber', 'value'),
+    State('shakeup-store', 'data'),,
     State('exp_spectrum_store', 'data'),
     State('structure_scores_store', 'data'),
     State('sort_metric_store', 'data'),
     prevent_initial_call=True
 )
-def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, exp_data, existing_scores, sort_metric):
+def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, exp_data, existing_scores, sort_metric):
     if not n_clicks:
         raise PreventUpdate
 
@@ -1401,17 +1645,28 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, exp_data, exist
     )
 
 
-def decorate_structure_with_xas(st: Structure, el_type):
+def decorate_structure_with_xas(st: Structure, el_type, apply_shakeup=False):
     absorbing_site, spectroscopy_type = el_type.split(' ')
     st_dict = st.as_dict()
     if absorbing_site in st.composition:
         print("XAS Spectrum generated for structure:", st, absorbing_site, spectroscopy_type)
         specs = predict(st, absorbing_site, spectroscopy_type)
+        if apply_shakeup and el_type == 'Ti VASP':
+            new_specs = {}
+            for k, v in specs.items():
+                orig_ene = ene_grid['Ti']
+                shaken = shakeupSpectrum(
+                    np.column_stack((orig_ene, v)),
+                    _Aw, pad_right=10, truncate_right=0.5
+                )
+                shaken_interp = np.interp(orig_ene, shaken[:, 0], shaken[:, 1])
+                new_specs[k] = shaken_interp.tolist()
+            specs = new_specs
+            
         st_dict['xas'] = specs
     else:
         st_dict['xas'] = {}
     return st_dict
-
 
 def parse_structure_file(contents, filename):
     """
@@ -1481,9 +1736,10 @@ def parse_structure_file(contents, filename):
     State('absorber', 'value'),
     State('structure_scores_store', 'data'),
     State('sort_metric_store', 'data'),
+    State('shakeup-store', 'data'),
     prevent_initial_call=True
 )
-def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existing_scores, sort_metric):
+def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existing_scores, sort_metric, shakeup_val):
     """
     Handle batch upload of multiple structure files.
     Parse each file, generate XAS spectrum, and compare with experimental data.
@@ -1529,6 +1785,14 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             # Generate XAS spectrum
             print("XAS Spectrum generated for structure:", st, element, el_type.split(' ')[1])
             specs = predict(st, element, el_type.split(' ')[1])
+            
+            if shakeup_val == 'yes' and el_type == 'Ti VASP':
+                orig_ene = ene_grid['Ti']
+                new_specs = {}
+                for k, v in specs.items():
+                    shaken = shakeupSpectrum(np.column_stack((orig_ene, v)), _Aw, pad_right=10, truncate_right=0.5)
+                    new_specs[k] = np.interp(orig_ene, shaken[:, 0], shaken[:, 1]).tolist()
+                specs = new_specs
 
             if len(specs) == 0:
                 failed += 1
@@ -1765,20 +2029,31 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
     )
 
     # Apply comparison range to x-axis to zoom into the comparison region
-    # Only apply if we have both experimental data and a valid comparison range
     if has_exp_data and comparison_range is not None and len(comparison_range) == 2:
         x_start, x_end = comparison_range
-        # Validate the range makes sense
-        if x_start < x_end and x_end - x_start > 5:  # At least 5 eV range
-            # Add 10% padding on each side for better visualization
-            range_width = x_end - x_start
-            padding = range_width * 0.1
+        if x_start < x_end and (x_end - x_start) > 5:
+            pad_x = (x_end - x_start) * 0.1
+            x_min, x_max = x_start - pad_x, x_end + pad_x
+            
             layout_config['xaxis'] = dict(
-                range=[x_start - padding, x_end + padding],
-                title=x_axis_label
+                range=[x_min, x_max], minallowed=x_min, maxallowed=x_max, 
+                autorange=False, title=x_axis_label
             )
-            print(f"=== Plot x-axis range set to: {x_start - padding:.1f} - {x_end + padding:.1f} eV ===")
-
+            
+            y_vals = np.concatenate([np.array(t.y)[(np.array(t.x) >= x_min) & (np.array(t.x) <= x_max)] 
+                                     for t in fig.data if t.x is not None and t.y is not None] or [[]])
+            
+            if y_vals.size > 0:
+                y_min, y_max = np.nanmin(y_vals), np.nanmax(y_vals)
+                pad_y = max((y_max - y_min) * 0.1, 0.1)
+                
+                layout_config['yaxis'] = dict(
+                    range=[y_min - pad_y, y_max + pad_y], minallowed=y_min - pad_y, 
+                    maxallowed=y_max + pad_y, autorange=False, title=y_axis_label
+                )
+            
+            print(f"=== Plot x-axis range set to: {x_min:.1f} - {x_max:.1f} eV ===")
+    
     fig.update_layout(**layout_config)
     return fig
 
@@ -1881,13 +2156,14 @@ def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, com
 @app.callback(
     Output(struct_component.id(), "data", allow_duplicate=True),
     Input('absorber', 'value'),
-    State(struct_component.id(), "data")
+    State(struct_component.id(), "data"),
+    Input('shakeup-store', 'data'),
 )
-def update_structure_by_absorber(el_type, st_data) -> Structure:
+def update_structure_by_absorber(el_type, st_data, shakeup_val) -> Structure:
     if st_data is None:
         raise PreventUpdate
     st = Structure.from_dict(st_data)
-    st_dict = decorate_structure_with_xas(st, el_type)
+    st_dict = decorate_structure_with_xas(st, el_type, apply_shakeup=(shakeup_val == 'yes'))
     return st_dict
 
 
@@ -1934,7 +2210,6 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
         raise PreventUpdate
 
     return clicked_metric
-
 
 @app.callback(
     Output('structure_scores_store', 'data'),
