@@ -24,5 +24,11 @@ fi
 
 exec gunicorn \
   --workers 1 \
+  --worker-class gthread \
+  --threads 8 \
+  --timeout 120 \
+  --graceful-timeout 30 \
+  --access-logfile - \
+  --error-logfile - \
   --bind 127.0.0.1:8443 \
   xas_ui:server

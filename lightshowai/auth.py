@@ -23,8 +23,10 @@ def _register_routes(server):
     def login():
         """Kick off the OAuth2 authorization code flow."""
         redirect_uri = server.config["OIDC_REDIRECT_URI"]
-        return oauth.oidc.authorize_redirect(redirect_uri)
-
+        print(f"[LOGIN] Session SID before authorize_redirect: {dict(session)}")
+        result = oauth.oidc.authorize_redirect(redirect_uri)
+        print(f"[LOGIN] Session SID after authorize_redirect: {dict(session)}")
+        return result
     @server.route("/auth/callback")
     def auth_callback():
         """
@@ -39,6 +41,10 @@ def _register_routes(server):
         If any of that fails, authorize_access_token() raises, and Flask
         returns a 500. We can add prettier error handling later.
         """
+        print(f"[CALLBACK] Session contents: {dict(session)}")
+        print(f"[CALLBACK] Cookies received: {dict(request.cookies)}")
+        print(f"[CALLBACK] Query state: {request.args.get('state')}")
+
         token = oauth.oidc.authorize_access_token()
 
         # The ID token's claims — this is where user identity lives.
@@ -62,9 +68,33 @@ def _register_routes(server):
 
     @server.route("/logout")
     def logout():
-        """Clear the local session. No IdP round-trip for now."""
+        """
+        Log the user out of both this app and the IdP.
+
+        Clears the local session, then redirects to the IdP's end_session_endpoint
+        so the IdP also forgets the user. The IdP will redirect back to
+        post_logout_redirect_uri when done.
+        """
         session.clear()
-        return redirect("/omnixas/")
+
+        # Build the IdP logout URL.
+        # Authlib exposes the discovery document's end_session_endpoint once the
+        # client has been loaded.
+        metadata = oauth.oidc.load_server_metadata()
+        end_session_endpoint = metadata.get("end_session_endpoint")
+
+        if not end_session_endpoint:
+            # Provider doesn't advertise end-session; fall back to local-only logout.
+            return redirect("/omnixas/")
+
+        # Where Entra should send the user after it clears its own session.
+        post_logout_redirect_uri = request.host_url.rstrip("/") + "/omnixas/"
+
+        logout_url = (
+            f"{end_session_endpoint}"
+            f"?post_logout_redirect_uri={post_logout_redirect_uri}"
+        )
+        return redirect(logout_url)
 
     @server.route("/whoami")
     def whoami():
