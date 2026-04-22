@@ -65,6 +65,7 @@ import atexit
 from datetime import datetime
 
 from tiled.client import from_uri
+from lightshowai.auth import init_auth
 
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.environ["TILED_API_KEY"]
@@ -119,6 +120,7 @@ server.config.update(
 )
 
 Session(server)
+init_auth(server)
 
 # return amount of visitors, and update count
 @server.route("/visitor-count")
