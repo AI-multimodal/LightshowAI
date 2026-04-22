@@ -1113,11 +1113,81 @@ def poll_tiled_updates(n):
         raise PreventUpdate
 
     return latest
+
+def _build_column_ui(columns, filename, default_x, default_y):
+    """Build dropdown options, column-definition table, and info text."""
+    options = [{'label': f"{col['name']} ({col['num_values']} pts)", 'value': col['index']}
+               for col in columns]
+
+    max_visible_rows = 5
+    table_height = "auto" if len(columns) <= max_visible_rows else f"{max_visible_rows * 40 + 30}px"
+
+    col_definition = html.Div([
+        html.Div(f"Detected {len(columns)} columns (edit names if needed):",
+                 style={"fontSize": "12px", "marginBottom": "6px", "marginTop": "10px"}),
+        html.Div([
+            html.Table([
+                html.Thead(html.Tr([
+                    html.Th("#", style={"padding": "4px 8px", "fontSize": "11px", "width": "30px",
+                                        "position": "sticky", "top": "0",
+                                        "backgroundColor": "#fafafa", "zIndex": "1"}),
+                    html.Th("Column Name", style={"padding": "4px 8px", "fontSize": "11px",
+                                                  "position": "sticky", "top": "0",
+                                                  "backgroundColor": "#fafafa", "zIndex": "1"}),
+                    html.Th("Points", style={"padding": "4px 8px", "fontSize": "11px", "width": "50px",
+                                             "position": "sticky", "top": "0",
+                                             "backgroundColor": "#fafafa", "zIndex": "1"}),
+                    html.Th("Sample Values", style={"padding": "4px 8px", "fontSize": "11px",
+                                                    "position": "sticky", "top": "0",
+                                                    "backgroundColor": "#fafafa", "zIndex": "1"}),
+                ])),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(col['index'] + 1, style={"padding": "4px 8px", "fontSize": "11px",
+                                                         "verticalAlign": "middle"}),
+                        html.Td(
+                            dcc.Input(
+                                id={'type': 'col-name-input', 'index': col['index']},
+                                type='text', value=col['name'],
+                                style={'width': '100%', 'padding': '4px', 'fontSize': '11px',
+                                       'border': '1px solid #ccc', 'borderRadius': '3px'}
+                            ),
+                            style={"padding": "4px"}
+                        ),
+                        html.Td(col['num_values'], style={"padding": "4px 8px", "fontSize": "11px",
+                                                          "verticalAlign": "middle"}),
+                        html.Td(", ".join([f"{v:.2f}" for v in col['sample_values'][:3]]) + "...",
+                                style={"padding": "4px 8px", "fontSize": "10px",
+                                       "color": "#666", "verticalAlign": "middle"}),
+                    ]) for col in columns
+                ])
+            ], style={"borderCollapse": "collapse", "width": "100%"})
+        ], style={
+            "maxHeight": table_height,
+            "overflowY": "auto" if len(columns) > max_visible_rows else "visible",
+            "border": "1px solid #ddd", "marginBottom": "10px"
+        }),
+        html.Button("Update Column Names", id="exp_update_col_names_btn",
+                    style={**button_secondary_style, "width": "100%", "height": "40px",
+                           "padding": "0", "fontSize": "13px", "marginBottom": "10px",
+                           "boxSizing": "border-box"})
+    ])
+
+    x_name = columns[default_x]['name'] if default_x < len(columns) else "Column 1"
+    y_name = columns[default_y]['name'] if default_y < len(columns) else "Column 2"
+    info_text = f"Loaded: {filename} (auto-selected: X={x_name}, Y={y_name})"
+
+    return options, col_definition, info_text
 @app.callback(
     Output('exp_raw_data_store', 'data', allow_duplicate=True),
     Output('exp_columns_store', 'data', allow_duplicate=True),
+    Output('exp_x_axis_dropdown', 'options', allow_duplicate=True),
+    Output('exp_y_axis_dropdown', 'options', allow_duplicate=True),
     Output('exp_x_axis_dropdown', 'value', allow_duplicate=True),
     Output('exp_y_axis_dropdown', 'value', allow_duplicate=True),
+    Output('exp_column_selection_area', 'style', allow_duplicate=True),
+    Output('exp_column_definition_area', 'children', allow_duplicate=True),
+    Output('exp_file_info', 'children', allow_duplicate=True),
     Output('exp_material_name', 'value', allow_duplicate=True),
     Output('exp-data-type-store', 'data', allow_duplicate=True),
     Input('tiled_live_store', 'data'),
@@ -1136,7 +1206,6 @@ def load_spectrum_from_tiled(tiled_event):
     columns = [{'index': i, 'name': name, 'num_values': len(data[i]),
                 'sample_values': data[i][:5]} for i, name in enumerate(col_names)]
 
-    # Auto-pick energy + transmission/fluorescence columns
     lower = [n.lower().strip() for n in col_names]
     auto_x = lower.index('energy') if 'energy' in lower else 0
     auto_y = next((i for i, n in enumerate(lower) if n in ('iff', 'it', 'if', 'ir')), 1)
@@ -1148,8 +1217,14 @@ def load_spectrum_from_tiled(tiled_event):
         'auto_x_col': auto_x, 'auto_y_col': auto_y,
         'detected_format': 'new_xas_csv' if is_new_csv else 'generic_csv',
     }
-    print("Raw Data from Tiled", raw_data)
-    return raw_data, columns, auto_x, auto_y, material_name, 'raw'
+
+    options, col_definition, info_text = _build_column_ui(columns, key, auto_x, auto_y)
+    visible_style = {"display": "block"}
+
+    return (raw_data, columns, options, options, auto_x, auto_y,
+            visible_style, col_definition,
+            html.Span(info_text, style={'color': 'blue'}),
+            material_name, 'raw')
 
 @app.callback(
     Output('exp_apply_btn', 'n_clicks'),
