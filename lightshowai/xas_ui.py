@@ -1113,11 +1113,13 @@ def poll_tiled_updates(n):
         raise PreventUpdate
 
     return latest
-
 @app.callback(
-    Output('exp_spectrum_store', 'data', allow_duplicate=True),
-    Output('exp_file_info', 'children', allow_duplicate=True),
+    Output('exp_raw_data_store', 'data', allow_duplicate=True),
+    Output('exp_columns_store', 'data', allow_duplicate=True),
+    Output('exp_x_axis_dropdown', 'value', allow_duplicate=True),
+    Output('exp_y_axis_dropdown', 'value', allow_duplicate=True),
     Output('exp_material_name', 'value', allow_duplicate=True),
+    Output('exp-data-type-store', 'data', allow_duplicate=True),
     Input('tiled_live_store', 'data'),
     prevent_initial_call=True
 )
@@ -1125,33 +1127,49 @@ def load_spectrum_from_tiled(tiled_event):
     if tiled_event is None:
         raise PreventUpdate
 
-    # spectrum = tiled_event.get("spectrum")
-    # print(f"DEBUG: Loading spectrum from tiled event: {tiled_event['key']}")
-    # print(f"DEBUG: Spectrum columns: {tiled_event['spectrum'].columns.tolist()}")
     spec = tiled_event["spectrum"]
-    print(list(spec.keys()))
+    key = tiled_event["key"]
+    material_name = (tiled_event.get("metadata") or {}).get("Sample.name", "") or key
 
-    # Ensure incoming data supports vectorized math (tiled may hand us plain lists)
-    i0 = np.asarray(spec["i0"], dtype=float)
-    it = np.asarray(spec["it"], dtype=float)
+    col_names = list(spec.keys())
+    data = [[float(v) for v in spec[name]] for name in col_names]
+    columns = [{'index': i, 'name': name, 'num_values': len(data[i]),
+                'sample_values': data[i][:5]} for i, name in enumerate(col_names)]
 
-    spectrum_payload = {
-        "energy": spec["energy"],
-        "absorption": np.log(i0 / it),
-        "filename": tiled_event["key"],
-        "material_name": tiled_event["metadata"].get("Sample.name", ""),
-        "x_label": "energy eV",
-        "y_label": "flat",
+    # Auto-pick energy + transmission/fluorescence columns
+    lower = [n.lower().strip() for n in col_names]
+    auto_x = lower.index('energy') if 'energy' in lower else 0
+    auto_y = next((i for i, n in enumerate(lower) if n in ('iff', 'it', 'if', 'ir')), 1)
+
+    is_new_csv = 'energy' in lower and 'i0' in lower and any(c in lower for c in ('iff', 'it', 'ir'))
+
+    raw_data = {
+        'columns': columns, 'data': data, 'filename': key,
+        'auto_x_col': auto_x, 'auto_y_col': auto_y,
+        'detected_format': 'new_xas_csv' if is_new_csv else 'generic_csv',
     }
+    print("Raw Data from Tiled", raw_data)
+    return raw_data, columns, auto_x, auto_y, material_name, 'raw'
 
-    label = spectrum_payload.get("material_name") or spectrum_payload.get("filename") or "Tiled Live"
+@app.callback(
+    Output('exp_apply_btn', 'n_clicks'),
+    Input('exp_raw_data_store', 'data'),
+    State('exp_apply_btn', 'n_clicks'),
+    State('tiled_live_store', 'data'),
+    prevent_initial_call=True
+)
+def auto_apply_tiled_stream(raw_data, current_clicks, tiled_event):
+    """Auto-click Apply & Plot when data arrives from Tiled stream."""
+    ctx = dash.callback_context
+    if not ctx.triggered or raw_data is None or tiled_event is None:
+        raise PreventUpdate
 
-    info = html.Span(
-        f"✓ Live update from NSLSII: {label} ({len(spectrum_payload['energy'])} points)",
-        style={"color": "green"}
-    )
+    # Only auto-apply if the raw_data came from a Tiled event
+    # (check by matching filename to the latest tiled event key)
+    if raw_data.get('filename') != tiled_event.get('key'):
+        raise PreventUpdate
 
-    return spectrum_payload, info, label
+    return (current_clicks or 0) + 1
 
 @app.callback(
     Output('exp-data-type-store', 'data'),
@@ -1506,7 +1524,7 @@ def download_xas_prediction(n_clicks, st_data, el_type):
     Input("mpid_search_btn", "n_clicks"),
     State("mpid_list_input", "value"),
     State('absorber', 'value'),
-    State('shakeup-store', 'data'),,
+    State('shakeup-store', 'data'),
     State('exp_spectrum_store', 'data'),
     State('structure_scores_store', 'data'),
     State('sort_metric_store', 'data'),
