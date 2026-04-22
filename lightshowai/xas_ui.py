@@ -39,7 +39,8 @@ from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 from pymatgen.core.structure import Structure
 from mp_api.client import MPRester
-
+from datetime import timedelta
+from flask_session import Session
 
 import crystal_toolkit.components as ctc
 from crystal_toolkit.helpers.layouts import (
@@ -95,6 +96,29 @@ redis_client = redis.Redis(
     password=os.environ.get("REDIS_PASSWORD") or None,
     decode_responses=True
 )
+
+# Flask secret key — required for signing session cookies
+_flask_secret = os.environ.get("FLASK_SECRET_KEY")
+if not _flask_secret:
+    raise RuntimeError("FLASK_SECRET_KEY is not set")
+
+server.config.update(
+    SECRET_KEY=_flask_secret,
+    # Server-side sessions stored in Redis
+    SESSION_TYPE="redis",
+    SESSION_REDIS=redis_client,
+    SESSION_KEY_PREFIX="omnixas:session:",   # namespace to avoid collisions
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_USE_SIGNER=True,                  # sign the session ID cookie
+    # Cookie hardening
+    SESSION_COOKIE_NAME="omnixas_session",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("OMNIXAS_COOKIE_SECURE", "true").lower() == "true",
+)
+
+Session(server)
 
 # return amount of visitors, and update count
 @server.route("/visitor-count")
