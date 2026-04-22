@@ -14,7 +14,19 @@ Environment variables required:
 
 import os
 from authlib.integrations.flask_client import OAuth
-from flask import redirect, url_for, session, jsonify, request
+from flask import redirect, url_for, session, jsonify, request, has_request_context
+
+
+def get_current_user():
+    """
+    Return the currently authenticated user dict, or None if anonymous
+    OR if we're being called outside a request context (e.g., during
+    app startup when Dash scans the layout).
+    """
+    if not has_request_context():
+        return None
+    return session.get("user")
+
 
 def _register_routes(server):
     """Register /login, /auth/callback, /logout, and /whoami routes."""
@@ -95,7 +107,17 @@ def _register_routes(server):
             f"?post_logout_redirect_uri={post_logout_redirect_uri}"
         )
         return redirect(logout_url)
-
+    @server.route("/auth/status")
+    def auth_status():
+        """Lightweight JSON endpoint for the BNL header widget to check auth state."""
+        user = session.get("user")
+        if not user:
+            return jsonify({"authenticated": False}), 200
+        return jsonify({
+            "authenticated": True,
+            "name": user.get("name"),
+            "email": user.get("email"),
+        }), 200
     @server.route("/whoami")
     def whoami():
         """Debug route: return the current session's user, if any."""

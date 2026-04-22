@@ -43,6 +43,7 @@
 						<li><a href="https://www.bnl.gov/contact-us/">Contact</a>
 						<li><a href="https://www.bnl.gov/directory/">Directory</a>
 						<li><a href="javascript:void(0);" class="gd-link"><span class="fa fa-search"></span> Search</a>
+						<li class="auth-widget" style="float:right;"></li>
 					</ul>
 				</div>
 			</div>
@@ -274,14 +275,26 @@
 				}
 			});
 
-			fetch('/visitor-count')
-				.then(function (r) { return r.json(); })
-				.then(function (data) {
-					document.getElementById('visitor-count').textContent = data.count;
-				})
-				.catch(function () {
-					document.getElementById('visitor-count').textContent = '—';
-				});
+			fetch('/auth/status')
+			.then(function (r) { return r.json(); })
+			.then(function (data) {
+				var widgets = document.querySelectorAll('.auth-widget');
+				var html;
+				if (data.authenticated) {
+					html =
+						'<span style="margin-right:8px; color:#fff;">' +
+							data.name + ' &middot; ' +
+							'<span style="opacity:0.8; font-size:0.9em;">' + data.email + '</span>' +
+						'</span>' +
+						'<a href="/logout" style="color:#fff;">Logout</a>';
+				} else {
+					html = '<a href="/login" style="color:#fff;">Login</a>';
+				}
+				widgets.forEach(function (w) { w.innerHTML = html; });
+			})
+			.catch(function () {
+				// auth status unavailable; leave widgets empty
+			});
 		});
 	</script>
 </body>

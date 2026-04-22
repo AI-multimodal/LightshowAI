@@ -41,6 +41,7 @@ from pymatgen.core.structure import Structure
 from mp_api.client import MPRester
 from datetime import timedelta
 from flask_session import Session
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import crystal_toolkit.components as ctc
 from crystal_toolkit.helpers.layouts import (
@@ -65,7 +66,7 @@ import atexit
 from datetime import datetime
 
 from tiled.client import from_uri
-from lightshowai.auth import init_auth
+from lightshowai.auth import init_auth, get_current_user
 
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.environ["TILED_API_KEY"]
@@ -88,6 +89,7 @@ _tiled_subscription = None
 app = dash.Dash(prevent_initial_callbacks=True, title="OmniXAS@Lightshow.ai",
                 url_base_pathname="/omnixas/")
 server = app.server
+server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # visitor count code
 # decode_responses=False: Flask-Session stores pickled bytes and needs raw
@@ -661,6 +663,7 @@ def parse_mpid_list(value):
     return result
 
 
+
 onmixas_layout = html.Div([
     tiled_poll_interval,
     tiled_live_store,
@@ -912,7 +915,8 @@ onmixas_layout = html.Div([
     "minHeight": "100vh",
     "padding": "24px",
     "paddingBottom": "16px",
-    "fontFamily": base_font
+    "fontFamily": base_font,
+    "position": "relative" 
 })
 
 # Store for energy shift value
@@ -2609,9 +2613,7 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
         "fontSize": "11px",
     })
 
-
 ctc.register_crystal_toolkit(app=app, layout=onmixas_layout)
-
 
 def serve():
     if "MP_API_KEY" not in os.environ:
