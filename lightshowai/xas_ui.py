@@ -1134,6 +1134,12 @@ def parse_file_columns(contents, filename):
     prevent_initial_call=False
 )
 def poll_tiled_updates(n):
+    # Gate: anonymous users don't receive Tiled streaming data.
+    # They keep the queue intact for authenticated users by NOT draining it.
+    from lightshowai.auth import get_current_user
+    if get_current_user() is None:
+        raise PreventUpdate
+
     latest = None
 
     while True:
@@ -1146,6 +1152,8 @@ def poll_tiled_updates(n):
         raise PreventUpdate
 
     return latest
+
+
 
 def _build_column_ui(columns, filename, default_x, default_y):
     """Build dropdown options, column-definition table, and info text."""
