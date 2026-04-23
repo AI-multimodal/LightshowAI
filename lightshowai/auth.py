@@ -75,7 +75,7 @@ def _register_routes(server):
         session.permanent = True
 
         # Redirect to wherever the user was trying to go, or the app root.
-        next_url = session.pop("next_url", "/omnixas/")
+        next_url = session.pop("next_url", "/")
         return redirect(next_url)
 
     @server.route("/logout")
@@ -97,10 +97,10 @@ def _register_routes(server):
 
         if not end_session_endpoint:
             # Provider doesn't advertise end-session; fall back to local-only logout.
-            return redirect("/omnixas/")
+            return redirect("/")
 
         # Where Entra should send the user after it clears its own session.
-        post_logout_redirect_uri = request.host_url.rstrip("/") + "/omnixas/"
+        post_logout_redirect_uri = request.host_url.rstrip("/") + "/"
 
         logout_url = (
             f"{end_session_endpoint}"
