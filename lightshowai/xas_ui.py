@@ -80,6 +80,12 @@ if not XAS_SANDBOX_URL:
     raise RuntimeError("XAS_SANDBOX_URL is not set")
 
 
+# Single global queue, drained by any polling client.
+# KNOWN LIMITATION: with multiple logged-in users, each Tiled event is
+# delivered to whichever user polls first — other users miss it.
+# Acceptable while usage is effectively single-user (one experimenter
+# at the beamline). Fix: per-session queue, fanning out events to all
+# authenticated sessions.
 _tiled_queue = queue.Queue()
 _tiled_listener_started = False
 _tiled_listener_lock = threading.Lock()
