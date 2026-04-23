@@ -55,6 +55,7 @@ from lightshowai.models import predict
 from lightshowai.postprocess import compare_utils
 from lightshowai.postprocess.normalize import normalizeSpectrum, spectrum_from_new_csv
 from lightshowai.postprocess.shakeup import loadShakeupKernel, shakeup as shakeupSpectrum
+from datetime import datetime
 
 _DAT_PATH = pathlib.Path(__file__).parent / "postprocess" / "Rutile-spfcn_model.dat"
 _Aw = loadShakeupKernel(str(_DAT_PATH))
@@ -80,12 +81,7 @@ if not XAS_SANDBOX_URL:
     raise RuntimeError("XAS_SANDBOX_URL is not set")
 
 
-# Single global queue, drained by any polling client.
-# KNOWN LIMITATION: with multiple logged-in users, each Tiled event is
-# delivered to whichever user polls first — other users miss it.
-# Acceptable while usage is effectively single-user (one experimenter
-# at the beamline). Fix: per-session queue, fanning out events to all
-# authenticated sessions.
+
 _tiled_queue = queue.Queue()
 _tiled_listener_started = False
 _tiled_listener_lock = threading.Lock()
@@ -644,8 +640,20 @@ tiled_poll_interval = dcc.Interval(
     n_intervals=0
 )
 
-tiled_live_store = dcc.Store(id="tiled_live_store", data=None)
+# tiled_live_store = dcc.Store(id="tiled_live_store", data=None)
 
+# List of pending spectra from Tiled, newest-first. Each entry has the shape:
+#   {"key": str, "metadata": dict, "spectrum": dict, "arrived_at": iso-timestamp}
+# Per-Dash-session, so each user has their own pending list.
+pending_spectra_store = dcc.Store(id="pending_spectra_store", data=[])
+# Version counter — incremented every time pending_spectra_store is updated.
+# Used as a reliable trigger for render_pending_section because Input-listens
+# to stores with multiple allow_duplicate writers can miss updates.
+pending_version_store = dcc.Store(id="pending_version_store", data=0)
+# Marks the origin of the most recent raw_data population.
+# "pending" = from a pending-entry load, "manual" = from file upload, None = initial.
+# Used by auto_apply_pending_load to decide whether to auto-trigger Apply & Plot.
+last_load_source_store = dcc.Store(id="last_load_source_store", data=None)
 
 def parse_mpid_list(value):
     if not value:
@@ -668,11 +676,75 @@ def parse_mpid_list(value):
 
     return result
 
+def _format_pending_label(entry):
+    """Build the dropdown label for a pending entry: 'Key • HH:MM Day'."""
+    key = entry.get("key", "unknown")
+    try:
+        arrived = datetime.fromisoformat(entry["arrived_at"])
+        label_time = arrived.strftime("%H:%M %a")
+    except (KeyError, ValueError):
+        label_time = ""
+    return f"{key} • {label_time}" if label_time else key
 
+def _load_pending_entry(entry):
+    """
+    Translate a pending Tiled entry into the outputs needed to populate the
+    experimental-spectrum UI. Mirrors the logic of the old
+    load_spectrum_from_tiled callback.
+
+    Returns a 12-tuple matching the outputs of handle_load_click below
+    (everything except the pending_spectra_store update and the modal store).
+    """
+    spec = entry["spectrum"]
+    key = entry["key"]
+    material_name = (entry.get("metadata") or {}).get("Sample.name", "") or key
+
+    col_names = list(spec.keys())
+    data = [[float(v) for v in spec[name]] for name in col_names]
+    columns = [
+        {"index": i, "name": name, "num_values": len(data[i]),
+         "sample_values": data[i][:5]}
+        for i, name in enumerate(col_names)
+    ]
+
+    lower = [n.lower().strip() for n in col_names]
+    auto_x = lower.index("energy") if "energy" in lower else 0
+    auto_y = next(
+        (i for i, n in enumerate(lower) if n in ("iff", "it", "if", "ir")),
+        1,
+    )
+    is_new_csv = (
+        "energy" in lower
+        and "i0" in lower
+        and any(c in lower for c in ("iff", "it", "ir"))
+    )
+
+    raw_data = {
+        "columns": columns,
+        "data": data,
+        "filename": key,
+        "auto_x_col": auto_x,
+        "auto_y_col": auto_y,
+        "detected_format": "new_xas_csv" if is_new_csv else "generic_csv",
+    }
+
+    options, col_definition, info_text = _build_column_ui(
+        columns, key, auto_x, auto_y
+    )
+
+    return (
+        raw_data, columns, options, options, auto_x, auto_y,
+        {"display": "block"}, col_definition,
+        html.Span(info_text, style={"color": "blue"}),
+        material_name, "raw",
+    )
 
 onmixas_layout = html.Div([
     tiled_poll_interval,
-    tiled_live_store,
+    # tiled_live_store,
+    pending_spectra_store,
+    pending_version_store,
+    last_load_source_store,
     # Main content area
     Columns([
         # Column 1: Input Controls
@@ -681,6 +753,65 @@ onmixas_layout = html.Div([
                 # Experimental Spectrum Upload Card
                 html.Div([
                     html.Div("Upload Experimental Spectrum", style=section_header_style),
+                   html.Div(
+                        id="pending_spectra_section",
+                        children=[
+                            html.Div(
+                                id="pending_spectra_header",
+                                children="",
+                                style={
+                                    **input_label_style,
+                                    "color": "#1a73e8",
+                                    "marginBottom": "8px",
+                                }
+                            ),
+                            html.Div([
+                                html.Div(
+                                    dcc.Dropdown(
+                                        id="pending_spectra_dropdown",
+                                        options=[],
+                                        value=None,
+                                        clearable=False,
+                                        style={"fontSize": "12px"}
+                                    ),
+                                    style={"marginBottom": "8px"}
+                                ),
+                                html.Div([
+                                    html.Button(
+                                        "Load",
+                                        id="pending_load_btn",
+                                        n_clicks=0,
+                                        style={
+                                            **button_primary_style,
+                                            "width": "48%",
+                                            "height": "36px",
+                                            "padding": "0",
+                                            "fontSize": "12px",
+                                            "marginRight": "4%",
+                                        }
+                                    ),
+                                    html.Button(
+                                        "Dismiss",
+                                        id="pending_dismiss_btn",
+                                        n_clicks=0,
+                                        style={
+                                            **button_secondary_style,
+                                            "width": "48%",
+                                            "height": "36px",
+                                            "padding": "0",
+                                            "fontSize": "12px",
+                                        }
+                                    ),
+                                ]),
+                            ], style={
+                                "backgroundColor": "#f0f7ff",
+                                "border": "1px solid #c5dcf5",
+                                "borderRadius": "6px",
+                                "padding": "12px",
+                            }),
+                        ],
+                        style={"display": "none"}
+                    ),
 
                     html.Div("Material Name (optional):", style=input_label_style),
                     exp_material_name_input,
@@ -1135,29 +1266,133 @@ def parse_file_columns(contents, filename):
         return {'error': str(e)}
 
 @app.callback(
-    Output("tiled_live_store", "data"),
-    Input("tiled_poll_interval", "n_intervals"),
-    prevent_initial_call=False
+    Output("pending_spectra_section", "style"),
+    Output("pending_spectra_header", "children"),
+    Output("pending_spectra_dropdown", "options"),
+    Output("pending_spectra_dropdown", "value"),
+    Input("pending_version_store", "data"),       # trigger
+    State("pending_spectra_store", "data"),       # read actual list
 )
-def poll_tiled_updates(n):
-    # Gate: anonymous users don't receive Tiled streaming data.
-    # They keep the queue intact for authenticated users by NOT draining it.
+def render_pending_section(version, pending):
+    """Update the pending section contents; show/hide based on list length."""
+    print(f"[render_pending] callback fired, version={version}, "
+          f"{len(pending) if pending else 0} entries")
+
+    if not pending:
+        return {"display": "none"}, "", [], None
+
+    options = [
+        {"label": _format_pending_label(entry), "value": idx}
+        for idx, entry in enumerate(pending)
+    ]
+    header = f"New from beamline ({len(pending)})"
+    return (
+        {"display": "block", "marginBottom": "16px"},
+        header,
+        options,
+        0,
+    )
+
+@app.callback(
+    Output("exp_apply_btn", "n_clicks"),
+    Input("exp_raw_data_store", "data"),
+    State("exp_apply_btn", "n_clicks"),
+    State("last_load_source_store", "data"),
+    prevent_initial_call=True,
+)
+def auto_apply_pending_load(raw_data, current_clicks, load_source):
+    """
+    Auto-click Apply & Plot only when raw_data was populated by a
+    pending-entry load. Manual uploads do NOT auto-apply; the user
+    clicks Apply & Plot themselves after reviewing column detection.
+    """
+    if raw_data is None or load_source != "pending":
+        raise PreventUpdate
+    return (current_clicks or 0) + 1
+
+@app.callback(
+    Output("pending_spectra_store", "data", allow_duplicate=True),
+    Output("pending_version_store", "data", allow_duplicate=True),
+    Output("last_load_source_store", "data", allow_duplicate=True),
+    Output("exp_raw_data_store", "data", allow_duplicate=True),
+    Output("exp_columns_store", "data", allow_duplicate=True),
+    Output("exp_x_axis_dropdown", "options", allow_duplicate=True),
+    Output("exp_y_axis_dropdown", "options", allow_duplicate=True),
+    Output("exp_x_axis_dropdown", "value", allow_duplicate=True),
+    Output("exp_y_axis_dropdown", "value", allow_duplicate=True),
+    Output("exp_column_selection_area", "style", allow_duplicate=True),
+    Output("exp_column_definition_area", "children", allow_duplicate=True),
+    Output("exp_file_info", "children", allow_duplicate=True),
+    Output("exp_material_name", "value", allow_duplicate=True),
+    Output("exp-data-type-store", "data", allow_duplicate=True),
+    Input("pending_load_btn", "n_clicks"),
+    State("pending_spectra_dropdown", "value"),
+    State("pending_spectra_store", "data"),
+    State("pending_version_store", "data"),
+    prevent_initial_call=True,
+)
+def handle_load_click(n_clicks, selected_idx, pending, current_version):
+    if n_clicks is None or not pending or selected_idx is None:
+        raise PreventUpdate
+    if selected_idx >= len(pending):
+        raise PreventUpdate
+
+    entry = pending[selected_idx]
+    load_results = _load_pending_entry(entry)
+    updated_pending = [e for i, e in enumerate(pending) if i != selected_idx]
+
+    return (updated_pending, (current_version or 0) + 1, "pending") + load_results
+
+@app.callback(
+    Output("pending_spectra_store", "data", allow_duplicate=True),
+    Output("pending_version_store", "data", allow_duplicate=True),
+    Input("pending_dismiss_btn", "n_clicks"),
+    State("pending_spectra_dropdown", "value"),
+    State("pending_spectra_store", "data"),
+    State("pending_version_store", "data"),
+    prevent_initial_call=True,
+)
+def handle_dismiss(n_clicks, selected_idx, pending, current_version):
+    if n_clicks is None or not pending or selected_idx is None:
+        raise PreventUpdate
+    if selected_idx >= len(pending):
+        raise PreventUpdate
+
+    updated = [e for i, e in enumerate(pending) if i != selected_idx]
+    return updated, (current_version or 0) + 1
+@app.callback(
+    Output("pending_spectra_store", "data", allow_duplicate=True),
+    Output("pending_version_store", "data", allow_duplicate=True),
+    Input("tiled_poll_interval", "n_intervals"),
+    State("pending_spectra_store", "data"),
+    State("pending_version_store", "data"),
+    prevent_initial_call=True,
+)
+def poll_tiled_updates(n, current_pending, current_version):
     from lightshowai.auth import get_current_user
     if get_current_user() is None:
         raise PreventUpdate
 
-    latest = None
-
+    new_events = []
     while True:
         try:
-            latest = _tiled_queue.get_nowait()
+            new_events.append(_tiled_queue.get_nowait())
         except queue.Empty:
             break
 
-    if latest is None:
+    if not new_events:
         raise PreventUpdate
 
-    return latest
+    stamped = [
+        {**ev, "arrived_at": datetime.now().isoformat()}
+        for ev in new_events
+    ]
+    updated = list(reversed(stamped)) + (current_pending or [])
+
+    print(f"[poll] pending list now has {len(updated)} entries: "
+          f"{[e.get('key') for e in updated]}")
+
+    return updated, (current_version or 0) + 1
 
 
 
@@ -1240,58 +1475,7 @@ def _build_column_ui(columns, filename, default_x, default_y):
     Input('tiled_live_store', 'data'),
     prevent_initial_call=True
 )
-def load_spectrum_from_tiled(tiled_event):
-    if tiled_event is None:
-        raise PreventUpdate
 
-    spec = tiled_event["spectrum"]
-    key = tiled_event["key"]
-    material_name = (tiled_event.get("metadata") or {}).get("Sample.name", "") or key
-
-    col_names = list(spec.keys())
-    data = [[float(v) for v in spec[name]] for name in col_names]
-    columns = [{'index': i, 'name': name, 'num_values': len(data[i]),
-                'sample_values': data[i][:5]} for i, name in enumerate(col_names)]
-
-    lower = [n.lower().strip() for n in col_names]
-    auto_x = lower.index('energy') if 'energy' in lower else 0
-    auto_y = next((i for i, n in enumerate(lower) if n in ('iff', 'it', 'if', 'ir')), 1)
-
-    is_new_csv = 'energy' in lower and 'i0' in lower and any(c in lower for c in ('iff', 'it', 'ir'))
-
-    raw_data = {
-        'columns': columns, 'data': data, 'filename': key,
-        'auto_x_col': auto_x, 'auto_y_col': auto_y,
-        'detected_format': 'new_xas_csv' if is_new_csv else 'generic_csv',
-    }
-
-    options, col_definition, info_text = _build_column_ui(columns, key, auto_x, auto_y)
-    visible_style = {"display": "block"}
-
-    return (raw_data, columns, options, options, auto_x, auto_y,
-            visible_style, col_definition,
-            html.Span(info_text, style={'color': 'blue'}),
-            material_name, 'raw')
-
-@app.callback(
-    Output('exp_apply_btn', 'n_clicks'),
-    Input('exp_raw_data_store', 'data'),
-    State('exp_apply_btn', 'n_clicks'),
-    State('tiled_live_store', 'data'),
-    prevent_initial_call=True
-)
-def auto_apply_tiled_stream(raw_data, current_clicks, tiled_event):
-    """Auto-click Apply & Plot when data arrives from Tiled stream."""
-    ctx = dash.callback_context
-    if not ctx.triggered or raw_data is None or tiled_event is None:
-        raise PreventUpdate
-
-    # Only auto-apply if the raw_data came from a Tiled event
-    # (check by matching filename to the latest tiled event key)
-    if raw_data.get('filename') != tiled_event.get('key'):
-        raise PreventUpdate
-
-    return (current_clicks or 0) + 1
 
 @app.callback(
     Output('exp-data-type-store', 'data'),
@@ -1376,6 +1560,7 @@ def toggle_shakeup_visibility(el_type):
     Output('exp_spectrum_upload', 'contents'),
     Output('exp_spectrum_upload', 'filename'),
     Output('exp_material_name', 'value'),
+    Output('last_load_source_store', 'data', allow_duplicate=True),
     Input('exp_spectrum_upload', 'contents'),
     Input('clear_exp_btn', 'n_clicks'),
     State('exp_spectrum_upload', 'filename'),
@@ -1395,7 +1580,7 @@ def handle_file_upload(contents, clear_clicks, filename):
 
     if trigger_id == 'clear_exp_btn':
         return (None, None, [], [], None, None, hidden_style, [],
-                'No experimental spectrum loaded', None, None, '')
+                'No experimental spectrum loaded', None, None, '', "manual")
 
     if contents is None:
         raise PreventUpdate
@@ -1406,7 +1591,7 @@ def handle_file_upload(contents, clear_clicks, filename):
         error_msg = result.get('error', 'Failed to parse file') if result else 'Failed to parse file'
         return (None, None, [], [], None, None, hidden_style, [],
                 html.Span(f"Error: {error_msg}", style={'color': 'red'}),
-                dash.no_update, dash.no_update, dash.no_update)
+                dash.no_update, dash.no_update, dash.no_update, "manual")
 
     columns = result['columns']
     options = [{'label': f"{col['name']} ({col['num_values']} pts)", 'value': col['index']} for col in columns]
@@ -1472,7 +1657,7 @@ def handle_file_upload(contents, clear_clicks, filename):
 
     return (result, columns, options, options, default_x, default_y, visible_style, col_definition,
             html.Span(info_text, style={'color': 'blue'}),
-            dash.no_update, dash.no_update, material_name_from_file)
+            dash.no_update, dash.no_update, material_name_from_file,"manual")
 
 
 @app.callback(
