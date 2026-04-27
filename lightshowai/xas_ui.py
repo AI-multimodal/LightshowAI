@@ -87,6 +87,9 @@ _tiled_listener_started = False
 _tiled_listener_lock = threading.Lock()
 _tiled_subscription = None
 
+_tiled_spectra_cache = {}
+_tiled_spectra_cache_lock = threading.Lock()
+
 
 app = dash.Dash(prevent_initial_callbacks=True, title="OmniXAS@Lightshow.ai",
                 url_base_pathname="/omnixas/")
@@ -345,14 +348,25 @@ def on_new_tiled_spectrum(update):
             except Exception:
                 raise ValueError("Tiled entry did not produce a pandas DataFrame")
 
+        spectrum_dict = df.to_dict("list")
+        key = str(update.key)
+
+        # Cache the full spectrum server-side, keyed by Tiled key.
+        with _tiled_spectra_cache_lock:
+            _tiled_spectra_cache[key] = {
+                "metadata": md,
+                "spectrum": spectrum_dict,
+            }
+
+        # Put a lightweight marker in the queue — just key + metadata,
+        # NOT the spectrum itself.
         event = {
-            "key": str(update.key),
+            "key": key,
             "metadata": md,
-            "spectrum": df.to_dict("list")  # Convert DataFrame to dict of lists for JSON serialization,
         }
 
         _tiled_queue.put(event)
-        print(f"Queued new spectrum from Tiled: {update.key}")
+        print(f"Queued new spectrum from Tiled: {key}")
 
     except Exception as e:
         print(f"Error processing Tiled update: {e}")
@@ -646,10 +660,7 @@ tiled_poll_interval = dcc.Interval(
 #   {"key": str, "metadata": dict, "spectrum": dict, "arrived_at": iso-timestamp}
 # Per-Dash-session, so each user has their own pending list.
 pending_spectra_store = dcc.Store(id="pending_spectra_store", data=[])
-# Version counter — incremented every time pending_spectra_store is updated.
-# Used as a reliable trigger for render_pending_section because Input-listens
-# to stores with multiple allow_duplicate writers can miss updates.
-pending_version_store = dcc.Store(id="pending_version_store", data=0)
+
 # Marks the origin of the most recent raw_data population.
 # "pending" = from a pending-entry load, "manual" = from file upload, None = initial.
 # Used by auto_apply_pending_load to decide whether to auto-trigger Apply & Plot.
@@ -688,16 +699,28 @@ def _format_pending_label(entry):
 
 def _load_pending_entry(entry):
     """
-    Translate a pending Tiled entry into the outputs needed to populate the
-    experimental-spectrum UI. Mirrors the logic of the old
-    load_spectrum_from_tiled callback.
-
-    Returns a 12-tuple matching the outputs of handle_load_click below
-    (everything except the pending_spectra_store update and the modal store).
+    Translate a pending Tiled entry into the outputs needed to populate
+    the experimental-spectrum UI. Spectrum data is fetched from the
+    server-side cache by key.
     """
-    spec = entry["spectrum"]
     key = entry["key"]
-    material_name = (entry.get("metadata") or {}).get("Sample.name", "") or key
+
+    with _tiled_spectra_cache_lock:
+        cached = _tiled_spectra_cache.get(key)
+
+    if cached is None:
+        # Spectrum was dropped from cache — shouldn't happen in practice,
+        # but don't crash. Return empty load.
+        return (
+            None, [], [], [], None, None,
+            {"display": "none"}, [],
+            html.Span(f"Spectrum {key} no longer available", style={"color": "red"}),
+            "", "raw",
+        )
+
+    spec = cached["spectrum"]
+    md = cached["metadata"]
+    material_name = md.get("Sample.name", "") or key
 
     col_names = list(spec.keys())
     data = [[float(v) for v in spec[name]] for name in col_names]
@@ -743,7 +766,6 @@ onmixas_layout = html.Div([
     tiled_poll_interval,
     # tiled_live_store,
     pending_spectra_store,
-    pending_version_store,
     last_load_source_store,
     # Main content area
     Columns([
@@ -1270,13 +1292,10 @@ def parse_file_columns(contents, filename):
     Output("pending_spectra_header", "children"),
     Output("pending_spectra_dropdown", "options"),
     Output("pending_spectra_dropdown", "value"),
-    Input("pending_version_store", "data"),       # trigger
-    State("pending_spectra_store", "data"),       # read actual list
+    Input("pending_spectra_store", "data"),
 )
-def render_pending_section(version, pending):
-    """Update the pending section contents; show/hide based on list length."""
-    print(f"[render_pending] callback fired, version={version}, "
-          f"{len(pending) if pending else 0} entries")
+def render_pending_section(pending):
+    print(f"[render_pending] callback fired with {len(pending) if pending else 0} entries")
 
     if not pending:
         return {"display": "none"}, "", [], None
@@ -1312,7 +1331,6 @@ def auto_apply_pending_load(raw_data, current_clicks, load_source):
 
 @app.callback(
     Output("pending_spectra_store", "data", allow_duplicate=True),
-    Output("pending_version_store", "data", allow_duplicate=True),
     Output("last_load_source_store", "data", allow_duplicate=True),
     Output("exp_raw_data_store", "data", allow_duplicate=True),
     Output("exp_columns_store", "data", allow_duplicate=True),
@@ -1328,10 +1346,9 @@ def auto_apply_pending_load(raw_data, current_clicks, load_source):
     Input("pending_load_btn", "n_clicks"),
     State("pending_spectra_dropdown", "value"),
     State("pending_spectra_store", "data"),
-    State("pending_version_store", "data"),
     prevent_initial_call=True,
 )
-def handle_load_click(n_clicks, selected_idx, pending, current_version):
+def handle_load_click(n_clicks, selected_idx, pending):
     if n_clicks is None or not pending or selected_idx is None:
         raise PreventUpdate
     if selected_idx >= len(pending):
@@ -1341,34 +1358,29 @@ def handle_load_click(n_clicks, selected_idx, pending, current_version):
     load_results = _load_pending_entry(entry)
     updated_pending = [e for i, e in enumerate(pending) if i != selected_idx]
 
-    return (updated_pending, (current_version or 0) + 1, "pending") + load_results
+    return (updated_pending, "pending") + load_results
 
 @app.callback(
     Output("pending_spectra_store", "data", allow_duplicate=True),
-    Output("pending_version_store", "data", allow_duplicate=True),
     Input("pending_dismiss_btn", "n_clicks"),
     State("pending_spectra_dropdown", "value"),
     State("pending_spectra_store", "data"),
-    State("pending_version_store", "data"),
     prevent_initial_call=True,
 )
-def handle_dismiss(n_clicks, selected_idx, pending, current_version):
+def handle_dismiss(n_clicks, selected_idx, pending):
     if n_clicks is None or not pending or selected_idx is None:
         raise PreventUpdate
     if selected_idx >= len(pending):
         raise PreventUpdate
 
-    updated = [e for i, e in enumerate(pending) if i != selected_idx]
-    return updated, (current_version or 0) + 1
+    return [e for i, e in enumerate(pending) if i != selected_idx]
 @app.callback(
     Output("pending_spectra_store", "data", allow_duplicate=True),
-    Output("pending_version_store", "data", allow_duplicate=True),
     Input("tiled_poll_interval", "n_intervals"),
     State("pending_spectra_store", "data"),
-    State("pending_version_store", "data"),
     prevent_initial_call=True,
 )
-def poll_tiled_updates(n, current_pending, current_version):
+def poll_tiled_updates(n, current_pending):
     from lightshowai.auth import get_current_user
     if get_current_user() is None:
         raise PreventUpdate
@@ -1392,7 +1404,7 @@ def poll_tiled_updates(n, current_pending, current_version):
     print(f"[poll] pending list now has {len(updated)} entries: "
           f"{[e.get('key') for e in updated]}")
 
-    return updated, (current_version or 0) + 1
+    return updated
 
 
 
