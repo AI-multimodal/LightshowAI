@@ -20,7 +20,7 @@
 </head>
 
 <body>
-	<div class="content">
+	<div class="content" style="background-color: #f5f5f5;">
 		<div id="BNL-mobile-menu">
 			<p id="siteMenuMobileHead" class="mobileMenuHead">Site Navigation<span
 					class="fa fa-angle-double-left fa-lg closeMobileMenuIcon"></span></p>
@@ -109,14 +109,16 @@
 			</div>
 		</div>
 
-        <div class="tabs" style="margin: 0; padding: 0; border: none; position: relative;">
+        <div class="tabs" style="margin: 0; padding: 0; border: none; position: relative; display: flex; flex-direction: column; flex-grow: 1;">
             <div id="visitor-counter" class="desktop-counter">
                 <span class="fa fa-eye"></span> Total visits: <span id="visitor-count">—</span>
             </div>
 
-            <ul style="border-radius: 0; padding-top: 10px;">
+            <ul style="border-radius: 0; padding-top: 10px; background: #fff !important;">
                 <li><a href="#app-tab">Demo</a></li>
-                <li><a href="#info-tab">About & License</a></li>
+                <li><a href="#manual-tab">Manual</a></li>
+                <li><a href="#info-tab">About</a></li>
+                <li><a href="#license-tab">License</a></li>
             </ul>
 
 			<!-- lightshowai -->
@@ -142,23 +144,49 @@
 					style="width: 100%; border: 0; display: block; overflow: hidden; height: 80vh;"></iframe>
 			</div>
 
-			<!-- about/license/funding tab -->
-			<div id="info-tab" style="background-color: #f5f5f5; padding: 20px 0;">
+			<!-- manual tab -->
+			<div id="manual-tab" style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
 				<div class="container_24">
-					<h2 style="padding-top:12px">About</h2>
-					<p>
-						<strong>Lightshowai</strong> is a web user interface to predict the x-ray absorption
-						near edge structure (XANES) spectra using neural network models. Currently, the models we
-						provide are OmniXAS models of 3d transition metal (Ti-Cu) K-edge at two levels of theory: FEFF
-						model for all the 8 elements and VASP models for Ti and Cu only. We recommend users of
-						Lightshowai to cite the following references: Benchmark [Phys. Rev. Materials 8, 013801 (2024)],
-						Lightshow [Journal of Open Source Software 8 (87), 5182 (2023)], and OmniXAS [Phys. Rev.
-						Materials 9, 043803 (2025)]. Please contact <a href="mailto:dlu@bnl.gov">Deyu Lu
-							(dlu@bnl.gov)</a> if you have questions.
-					</p>
-					<div class="grid_12 alpha">
+					<div class="grid_24">
+						<h2>Manual</h2>
+						<p style="font-size: 1.1em; color: #333; line-height: 1.6;">Shake-up effects:</p>
+						<p>
+							Shake-up effects in X-ray Absorption Spectroscopy (XAS) arise from the simultaneous excitation of valence electrons during a core-level transition. While these many-body effects manifest as satellite peaks in X-ray photoemission spectroscopy, they represent physics beyond the standard quasiparticle approximation typically used in simulations.
+						</p>
+						<p>
+							Currently, the shake-up implementation in LightshowAI is validated exclusively for VASP-based simulations of the Ti K-edge in materials featuring a TiO<sub>6</sub> octahedral motif, including:
+						</p>
+						<ul>
+						<li><strong>Perovskites:</strong> SrTiO<sub>3</sub>, CaTiO<sub>3</sub>, BaTiO<sub>3</sub></li>
+						<li><strong>TiO<sub>2</sub> Polymorphs:</strong> Rutile, Anatase, Brookite</li>
+						<li><strong>Mixed Oxides:</strong> NiTiO<sub>3</sub>, FeTiO<sub>3</sub></li>
+						</ul>
+						<p>
+							Users are advised to exercise caution when applying these corrections to chemical species or simulation frameworks outside of the Ti-VASP model. Comprehensive theoretical details and further benchmarks will be provided in an upcoming manuscript
+						</p>
+					</div>
+					<div class="clear"></div>
+				</div>
+			</div>
+
+			<!-- about/funding tab -->
+			<div id="info-tab" style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
+				<div class="container_24">
+					<div class="grid_24">
+						<h2>About</h2>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 2em;">
+							<strong>Lightshowai</strong> is a web user interface to predict the x-ray absorption
+							near edge structure (XANES) spectra using neural network models. Currently, the models we
+							provide are OmniXAS models of 3d transition metal (Ti-Cu) K-edge at two levels of theory: FEFF
+							model for all the 8 elements and VASP models for Ti and Cu only. We recommend users of
+							Lightshowai to cite the following references: Benchmark [Phys. Rev. Materials 8, 013801 (2024)],
+							Lightshow [Journal of Open Source Software 8 (87), 5182 (2023)], and OmniXAS [Phys. Rev.
+							Materials 9, 043803 (2025)]. Please contact <a href="mailto:dlu@bnl.gov">Deyu Lu
+								(dlu@bnl.gov)</a> if you have questions.
+						</p>
+
 						<h2>Funding acknowledgment</h2>
-						<p>This research is based upon work supported by the U.S. Department of Energy, Office of
+						<p style="font-size: 1.1em; line-height: 1.6;">This research is based upon work supported by the U.S. Department of Energy, Office of
 							Science, Office Basic Energy Sciences, under Award Number FWP PS-030. This research used the
 							Theory and Computation resources of the Center for Functional Nanomaterials (CFN), which is
 							a U.S. Department of Energy Office of Science User Facility, at Brookhaven National
@@ -168,10 +196,16 @@
 							irrevocable worldwide license in this computer software and data to reproduce, prepare
 							derivative works, and perform publicly and display publicly.</p>
 					</div>
+					<div class="clear"></div>
+				</div>
+			</div>
 
-					<div class="grid_12 omega">
+			<!-- license informagtion -->
+			<div id="license-tab" style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
+				<div class="container_24">
+					<div class="grid_24">
 						<h2>BSD 3-Clause License</h2>
-						<p style="font-size: 0.9em; color: #555;">THE SOFTWARE IS SUPPLIED "AS IS" WITHOUT WARRANTY OF
+						<p style="font-size: 1.1em; color: #333; line-height: 1.6;">THE SOFTWARE IS SUPPLIED "AS IS" WITHOUT WARRANTY OF
 							ANY KIND. THE UNITED STATES, THE UNITED STATES DEPARTMENT OF ENERGY, AND THEIR EMPLOYEES:
 							(1) DISCLAIM ANY WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY IMPLIED
 							WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE OR NON-INFRINGEMENT,
