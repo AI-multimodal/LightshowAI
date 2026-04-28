@@ -34,6 +34,7 @@ import dash
 from dash import dcc, html
 import plotly.express as px
 import plotly.graph_objects as go
+import json
 
 from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
@@ -1054,6 +1055,33 @@ onmixas_layout = html.Div([
                             html.Div("Upload experimental spectrum and load structures to see matching scores",
                                     style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"})
                         ]),
+
+                        html.Button(
+                            "Upload Meta Data",
+                            id="upload_metadata_btn",
+                            n_clicks=0,
+                            style={
+                                **button_primary_style,
+                                "width": "100%",
+                                "padding": "10px",
+                                "fontSize": "12px",
+                                "marginTop": "12px",
+                                "marginRight": "0",
+                                "borderRadius": "6px"
+                            }
+                        ),
+
+                        html.Div(
+                            id="upload_metadata_status",
+                            children="",
+                            style={
+                                "fontSize": "11px",
+                                "marginTop": "8px",
+                                "fontFamily": base_font
+                            }
+                        ),
+                        dcc.Store(id="matching_metadata_store", data=None),
+
                         structure_scores_store,
                         comparison_range_store,
                         selected_spectra_store,
@@ -1328,6 +1356,40 @@ def auto_apply_pending_load(raw_data, current_clicks, load_source):
     if raw_data is None or load_source != "pending":
         raise PreventUpdate
     return (current_clicks or 0) + 1
+
+@app.callback(
+    Output("matching_metadata_store", "data"),
+    Output("upload_metadata_status", "children"),
+    Input("upload_metadata_btn", "n_clicks"),
+    State("exp_spectrum_store", "data"),
+    State("structure_scores_store", "data"),
+    prevent_initial_call=True
+)
+def save_matching_metadata_to_store(n_clicks, exp_data, scores):
+    if not n_clicks:
+        raise PreventUpdate
+
+    try:
+        metadata = build_matching_metadata(exp_data, scores, top_n=3)
+
+        print("=== Matching metadata ready for upload ===")
+        print(json.dumps(metadata, indent=2))
+        print("=========================================")
+
+        return metadata, html.Span(
+            "✓ Metadata prepared and printed in backend logs",
+            style={"color": "green"}
+        )
+
+    except Exception as e:
+        print(f"Error preparing matching metadata: {e}")
+        import traceback
+        traceback.print_exc()
+
+        return dash.no_update, html.Span(
+            f"✗ Metadata preparation failed: {str(e)}",
+            style={"color": "red"}
+        )
 
 @app.callback(
     Output("pending_spectra_store", "data", allow_duplicate=True),
@@ -2650,6 +2712,47 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
 
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
     return updated_scores, build_scores_table(updated_scores, sort_metric), match_result['comparison_range']
+
+def build_matching_metadata(exp_data, scores, top_n=3):
+    """
+    Build metadata in the requested format:
+
+    {
+        experimental_spectrum_filename: {
+            structure_name: {
+                "pearson": score,
+                "spearman": score
+            },
+            ...
+        }
+    }
+    """
+    if exp_data is None:
+        raise ValueError("No experimental spectrum loaded")
+
+    filename = exp_data.get("filename")
+    if not filename:
+        raise ValueError("Experimental spectrum filename is missing")
+
+    if not scores:
+        raise ValueError("No structure matching scores available")
+
+    top_scores = scores[:top_n]
+
+    structure_metadata = {}
+
+    for entry in top_scores:
+        structure_name = entry.get("structure_id", "unknown_structure")
+        correlations = entry.get("correlations", {}) or {}
+
+        structure_metadata[structure_name] = {
+            "pearson": correlations.get("pearson"),
+            "spearman": correlations.get("spearman"),
+        }
+
+    return {
+        filename: structure_metadata
+    }
 
 
 def sort_scores_by_metric(scores, metric):
