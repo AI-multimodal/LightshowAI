@@ -303,7 +303,7 @@ xas_model_names = [f'{el} FEFF' for el in all_elements] + ['Ti VASP', 'Cu VASP']
 absorber_dropdown = dcc.Dropdown(xas_model_names, clearable=False, value='Ti VASP', id='absorber')
 
 # All available metrics for display
-ALL_METRICS = ["pearson", "spearman", "kendalltaub", "coss_deriv", "coss", "normed_wasserstein"]
+ALL_METRICS = ["coss_deriv", "pearson", "spearman", "coss", "kendalltaub", "normed_wasserstein"]
 
 # Short display names for table headers
 METRIC_SHORT_NAMES = {
@@ -604,29 +604,6 @@ exp_y_axis_dropdown = dcc.Dropdown(
     style={'marginBottom': '8px'}
 )
 
-# Raw-mode 3-column dropdowns (Energy / It·Iff / I0)
-exp_raw_energy_dropdown = dcc.Dropdown(
-    id='exp_raw_energy_dropdown',
-    options=[],
-    placeholder='Select Energy column',
-    clearable=True,
-    style={'fontSize': '12px'}
-)
-exp_raw_itiff_dropdown = dcc.Dropdown(
-    id='exp_raw_itiff_dropdown',
-    options=[],
-    placeholder='Select It / Iff column',
-    clearable=True,
-    style={'fontSize': '12px'}
-)
-exp_raw_i0_dropdown = dcc.Dropdown(
-    id='exp_raw_i0_dropdown',
-    options=[],
-    placeholder='Select I0 column',
-    clearable=True,
-    style={'fontSize': '12px'}
-)
-
 # Button to apply column selection and plot
 exp_apply_btn = html.Button(
     "Apply & Plot",
@@ -874,34 +851,15 @@ onmixas_layout = html.Div([
                         children=[
                             html.Div("Select columns to plot:", style={**input_label_style, "marginTop": "12px"}),
                             html.Div([
-                                # 2-column dropdowns (Normalized)
                                 html.Div([
-                                    html.Div([
-                                        html.Span("X-axis:", style={"fontSize": "11px", "display": "block", "marginBottom": "4px", "color": "#666"}),
-                                        exp_x_axis_dropdown,
-                                    ], style={"display": "inline-block", "width": "48%", "marginRight": "4%", "verticalAlign": "top"}),
-                                    html.Div([
-                                        html.Span("Y-axis:", style={"fontSize": "11px", "display": "block", "marginBottom": "4px", "color": "#666"}),
-                                        exp_y_axis_dropdown,
-                                    ], style={"display": "inline-block", "width": "48%", "verticalAlign": "top"}),
-                                ], id='norm-type-container', style={'display': 'block'}),
-
-                                # 3-column dropdowns (Raw)
+                                    html.Span("X-axis:", style={"fontSize": "11px", "display": "block", "marginBottom": "4px", "color": "#666"}),
+                                    exp_x_axis_dropdown,
+                                ], style={"display": "inline-block", "width": "48%", "marginRight": "4%", "verticalAlign": "top"}),
                                 html.Div([
-                                    html.Div([
-                                        html.Span("Energy", style={'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}),
-                                        exp_raw_energy_dropdown,
-                                    ], style={'flex': '1', 'minWidth': '0', 'marginRight': '6px'}),
-                                    html.Div([
-                                        html.Span(id='raw-itiff-label', children="It / Iff", style={'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}),
-                                        exp_raw_itiff_dropdown,
-                                    ], style={'flex': '1', 'minWidth': '0', 'marginRight': '6px'}),
-                                    html.Div([
-                                        html.Span("I0", style={'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}),
-                                        exp_raw_i0_dropdown,
-                                    ], style={'flex': '1', 'minWidth': '0'}),
-                                ], id='raw-dropdown-container', style={'display': 'none', 'marginBottom': '8px'}),
-                            ], style={'marginBottom': '15px'}),
+                                    html.Span("Y-axis:", style={"fontSize": "11px", "display": "block", "marginBottom": "4px", "color": "#666"}),
+                                    exp_y_axis_dropdown,
+                                ], style={"display": "inline-block", "width": "48%", "verticalAlign": "top"}),
+                            ]),
                             html.Div([
                                 html.Span("Data Format", style=radio_label_style),
                                 dcc.Store(id='exp-data-type-store', data='norm'),
@@ -920,7 +878,7 @@ onmixas_layout = html.Div([
                                         html.Button("Fluorescent",  id="btn-type-fluor",  style=radio_left_inactive_style),
                                         html.Button("Transmission", id="btn-type-trans",  style=radio_right_active_style),
                                     ], style=radio_row_style),
-
+                                    
                                     dcc.Store(id='exp-binning-store', data=0.25),
                                     html.Span("Bin Interval (eV)", style={'fontSize': '11px', 'display': 'block', 'marginBottom': '4px', 'color': '#666'}),
                                     html.Div([
@@ -1026,7 +984,7 @@ onmixas_layout = html.Div([
                         style={'display': 'none'}
                     ),
                 ], style=card_style)
-            ],
+            ], 
             style={"flex": "1", "padding": "0 6px", "minWidth": "150px", "alignSelf": "flex-start"}
         ),
 
@@ -1070,8 +1028,7 @@ onmixas_layout = html.Div([
                         "padding": "12px",
                         "fontSize": "12px",
                         "marginRight": "0",
-                        "borderRadius": "6px",
-                        "marginBottom": "20px"
+                        "borderRadius": "6px"
                     }),
                     dcc.Download(id="download_sink"),
 
@@ -1118,7 +1075,7 @@ onmixas_layout = html.Div([
     "padding": "24px",
     "paddingBottom": "16px",
     "fontFamily": base_font,
-    "position": "relative"
+    "position": "relative" 
 })
 
 # Store for energy shift value
@@ -1295,7 +1252,7 @@ def parse_file_columns(contents, filename):
 
         if len(columns) < 2:
             raise ValueError("File must have at least 2 columns for X and Y axes")
-
+        
         for col in columns:
             name_lower = str(col['name']).lower().strip()
             if name_lower in ['energy', 'e', 'ev']:
@@ -1310,11 +1267,11 @@ def parse_file_columns(contents, filename):
 
         print(f"=== DEBUG: Found {len(columns)} columns")
         print(f"=== DEBUG: Auto-selected X={auto_x_col}, Y={auto_y_col}")
-
+        
         col_names_lower = [str(col['name']).lower().strip() for col in columns]
-        is_new_csv = ("energy" in col_names_lower and "i0" in col_names_lower and
+        is_new_csv = ("energy" in col_names_lower and "i0" in col_names_lower and 
                       any(c in col_names_lower for c in ["iff", "it", "ir"]))
-
+        
         return {
             'columns': columns,
             'data': data,
@@ -1537,8 +1494,6 @@ def _build_column_ui(columns, filename, default_x, default_y):
     Output('btn-format-norm', 'style'),
     Output('btn-format-raw', 'style'),
     Output('raw-type-container', 'style'),
-    Output('norm-type-container', 'style'),
-    Output('raw-dropdown-container', 'style'),
     Input('btn-format-norm', 'n_clicks'),
     Input('btn-format-raw', 'n_clicks'),
     State('exp-data-type-store', 'data'),
@@ -1547,12 +1502,7 @@ def _build_column_ui(columns, filename, default_x, default_y):
 def update_format_toggle(_, __, current_val):
     current_val = _radio_callback('btn-format-norm', 'btn-format-raw', 'norm', 'raw', current_val)
     left, right = _radio_btn_styles(current_val == 'norm')
-
-    raw_extra_style = {'display': 'none' if current_val == 'norm' else 'block'}
-    norm_style = {'display': 'block' if current_val == 'norm' else 'none'}
-    raw_dropdown_style = {'display': 'flex' if current_val == 'raw' else 'none', 'marginBottom': '8px'}
-
-    return current_val, left, right, raw_extra_style, norm_style, raw_dropdown_style
+    return current_val, left, right, {'display': 'none' if current_val == 'norm' else 'block'}
 
 
 @app.callback(
@@ -1583,25 +1533,6 @@ def update_measurement_mode(_, __, current_val):
     current_val = _radio_callback('btn-type-fluor', 'btn-type-trans', 'fluorescence', 'transmission', current_val)
     left, right = _radio_btn_styles(current_val == 'fluorescence')
     return current_val, left, right
-
-
-@app.callback(
-    Output('exp_raw_itiff_dropdown', 'value', allow_duplicate=True),
-    Output('raw-itiff-label', 'children'),
-    Input('exp-raw-type-store', 'data'),
-    State('exp_columns_store', 'data'),
-    prevent_initial_call=True,
-)
-def sync_itiff_dropdown_to_mode(raw_type, columns):
-    """When the Fluorescent/Transmission toggle changes, auto-select the matching column."""
-    if columns is None:
-        raise PreventUpdate
-    is_fluor = (raw_type or 'transmission') == 'fluorescence'
-    label = 'Iff' if is_fluor else 'It'
-    aliases = ['iff', 'if', 'fluor'] if is_fluor else ['it', 'trans']
-    col_names_lower = {col['index']: str(col['name']).strip().lower() for col in columns}
-    matched = next((idx for idx, n in col_names_lower.items() if n in aliases), None)
-    return matched, label
 
 
 @app.callback(
@@ -1641,13 +1572,13 @@ def toggle_shakeup_visibility(el_type):
     Output('exp_spectrum_upload', 'contents'),
     Output('exp_spectrum_upload', 'filename'),
     Output('exp_material_name', 'value'),
+    Output('last_load_source_store', 'data', allow_duplicate=True),
     Input('exp_spectrum_upload', 'contents'),
     Input('clear_exp_btn', 'n_clicks'),
     State('exp_spectrum_upload', 'filename'),
-    State('exp-raw-type-store', 'data'),
     prevent_initial_call=True
 )
-def handle_file_upload(contents, clear_clicks, filename, raw_type):
+def handle_file_upload(contents, clear_clicks, filename):
     """Handle file upload - parse columns and populate dropdowns."""
     ctx = dash.callback_context
 
@@ -1661,7 +1592,7 @@ def handle_file_upload(contents, clear_clicks, filename, raw_type):
 
     if trigger_id == 'clear_exp_btn':
         return (None, None, [], [], None, None, hidden_style, [],
-                'No experimental spectrum loaded', None, None, '')
+                'No experimental spectrum loaded', None, None, '', "manual")
 
     if contents is None:
         raise PreventUpdate
@@ -1672,7 +1603,7 @@ def handle_file_upload(contents, clear_clicks, filename, raw_type):
         error_msg = result.get('error', 'Failed to parse file') if result else 'Failed to parse file'
         return (None, None, [], [], None, None, hidden_style, [],
                 html.Span(f"Error: {error_msg}", style={'color': 'red'}),
-                dash.no_update, dash.no_update, dash.no_update)
+                dash.no_update, dash.no_update, dash.no_update, "manual")
 
     columns = result['columns']
     options = [{'label': f"{col['name']} ({col['num_values']} pts)", 'value': col['index']} for col in columns]
@@ -1738,7 +1669,7 @@ def handle_file_upload(contents, clear_clicks, filename, raw_type):
 
     return (result, columns, options, options, default_x, default_y, visible_style, col_definition,
             html.Span(info_text, style={'color': 'blue'}),
-            dash.no_update, dash.no_update, material_name_from_file)
+            dash.no_update, dash.no_update, material_name_from_file,"manual")
 
 
 @app.callback(
@@ -1782,46 +1713,29 @@ def update_binning_mode(slider_val):
     State('exp_y_axis_dropdown', 'value'),
     State('exp_material_name', 'value'),
     State('exp-data-type-store', 'data'),
-    State('exp-raw-type-store', 'data'),
+    State('exp-raw-type-store', 'data'), 
     State('exp-binning-store', 'data'),
     State('exp-flatten-store', 'data'),
-    State('exp_raw_energy_dropdown', 'value'),
-    State('exp_raw_itiff_dropdown', 'value'),
-    State('exp_raw_i0_dropdown', 'value'),
     prevent_initial_call=True
 )
-def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, material_name, data_type, raw_mode, bin_mode, flattenmode, raw_energy_idx, raw_itiff_idx, raw_i0_idx):
+def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, material_name, data_type, raw_mode, bin_mode, flattenmode):
     """Apply column selection and create the spectrum data for plotting."""
     if n_clicks is None or raw_data is None:
         raise PreventUpdate
-
+    
     try:
         filename = raw_data['filename']
         display_name = material_name.strip() if material_name and material_name.strip() else filename
-
+        
         apply_flat = (flattenmode == 'yes')
 
-        if data_type == 'raw' and (raw_energy_idx is not None or raw_itiff_idx is not None or raw_i0_idx is not None):
-            # User has selected columns via the 3 raw dropdowns - build a canonical DataFrame
-            raw_col_map = {col['index']: raw_data['data'][col['index']] for col in columns}
-            df_raw = {}
-            if raw_energy_idx is not None:
-                df_raw['energy'] = raw_col_map[raw_energy_idx]
-            if raw_i0_idx is not None:
-                df_raw['i0'] = raw_col_map[raw_i0_idx]
-            is_fluor = (raw_mode or 'transmission') == 'fluorescence'
-            if raw_itiff_idx is not None:
-                df_raw['iff' if is_fluor else 'it'] = raw_col_map[raw_itiff_idx]
-
-            if 'energy' not in df_raw or 'i0' not in df_raw or (not is_fluor and 'it' not in df_raw) or (is_fluor and 'iff' not in df_raw):
-                missing = [k for k in (['energy', 'i0', 'iff' if is_fluor else 'it']) if k not in df_raw]
-                return None, html.Span(f"Please select all required columns: {', '.join(missing)}", style={'color': 'red'})
-
-            df = pd.DataFrame(df_raw)
+        if raw_data.get('detected_format') == 'new_xas_csv' and data_type == 'raw':
+            df = pd.DataFrame({col['name']: raw_data['data'][col['index']] for col in columns})
+            
             apply_bin = bin_mode > 0 if isinstance(bin_mode, (int, float)) else False
-            spec, meta = spectrum_from_new_csv(df, mode=raw_mode, apply_binning=apply_bin, bin_interval=bin_mode if apply_bin else 0.25)
+            spec, meta = spectrum_from_new_csv(df, mode=raw_mode, apply_binning=apply_bin, bin_interval=bin_mode if apply_bin else 0.25)           
             spec = normalizeSpectrum(spec, flatten=apply_flat)
-
+            
             x_data = spec[:, 0]
             y_data = spec[:, 1]
             x_label = meta['x_label']
@@ -1830,27 +1744,27 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
         else:
             if x_col_idx is None or y_col_idx is None:
                 return None, html.Span("Please select both X and Y axis columns", style={'color': 'red'})
-
+            
             print(f"=== DEBUG: Manual plotting. X={x_col_idx}, Y={y_col_idx} ===")
             data = raw_data['data']
             x_data = np.array(data[x_col_idx], dtype=float)
             y_data = np.array(data[y_col_idx], dtype=float)
-
+            
             min_len = min(len(x_data), len(y_data))
             x_data = x_data[:min_len]
             y_data = y_data[:min_len]
-
+            
             mask = np.isfinite(x_data) & np.isfinite(y_data)
             x_data = x_data[mask]
             y_data = y_data[mask]
-
+            
             if len(x_data) < 2:
                 return None, html.Span("Not enough data points", style={'color': 'red'})
-
+            
             sort_idx = np.argsort(x_data)
             x_data = x_data[sort_idx]
             y_data = y_data[sort_idx]
-
+            
             x_label = columns[x_col_idx]['name']
             y_label = columns[y_col_idx]['name']
 
@@ -1860,7 +1774,7 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
                 x_data = spec[:, 0]
                 y_data = spec[:, 1]
                 y_label = f"Normalized μ(E) [{y_label}]"
-
+        
         result = {
             'energy': x_data.tolist(),
             'absorption': y_data.tolist(),
@@ -1869,10 +1783,10 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
             'x_label': x_label,
             'y_label': y_label
         }
-
+        
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
         info_text = f"✓ {display_name} ({len(x_data)} points, {x_label}: {x_min:.1f}-{x_max:.1f})"
-
+        
         print(f"=== DEBUG: Plot ready. Output contains {len(x_data)} items. ===")
         return result, html.Span(info_text, style={'color': 'green'})
 
@@ -1882,102 +1796,42 @@ def apply_column_selection(n_clicks, raw_data, columns, x_col_idx, y_col_idx, ma
         traceback.print_exc()
         return None, html.Span(f"Error: {str(e)}", style={'color': 'red'})
 
-
 @app.callback(
     Output("download_sink", "data"),
     Input("download_btn", "n_clicks"),
     State(struct_component.id(), "data"),
     State('absorber', 'value'),
-    State('structure_scores_store', 'data'),
-    State('exp_spectrum_store', 'data'),
 )
-def download_xas_prediction(n_clicks, st_data, el_type, all_scores, exp_data):
-    if n_clicks is None or st_data is None:
+def download_xas_prediction(n_clicks, st_data, el_type):
+    if st_data is None:
         raise PreventUpdate
-
     el, theory = el_type.split(' ')
-    selected_items = [s for s in all_scores if s.get('selected', False)] if all_scores else []
-
+    st = Structure.from_dict(st_data)
+    d_xas = st_data['xas']
+    specs = np.stack([ene_grid[el]] + list(d_xas.values()))
+    site_idxs = ["Energy"] + [f'Atom #{int(i) + 1}' for i in d_xas.keys()]
+    df = pd.DataFrame(specs, index=site_idxs)
     with tempfile.TemporaryDirectory() as td:
         tmpdir = pathlib.Path(td)
-
-        # Determine the zip filename
-        if not selected_items:
-            zip_fn = tmpdir / f'OmniXAS_{el}_{theory}_Active_{n_clicks}.zip'
+        if len(d_xas) == 0:
+            fn_spec = tmpdir / "no_spectrum.csv"
         else:
-            zip_fn = tmpdir / f'OmniXAS_Selected_Results_{n_clicks}.zip'
-
+            fn_spec = tmpdir / "spectrum.csv"
+        fn_poscar = tmpdir / 'POSCAR'
+        files_to_zip = [fn_poscar, fn_spec]
+        st.to(fn_poscar, fmt='poscar')
+        df.to_csv(fn_spec, float_format="%.3f", header=False)
+        zip_fn = tmpdir / f'OmniXAS_{el}_{theory}_Prediction_{n_clicks}.zip'
         with ZipFile(zip_fn, mode="w") as zip_file:
-            # 1. Add Experimental Data if available
-            if exp_data and 'energy' in exp_data:
-                df_exp = pd.DataFrame({
-                    'Energy': exp_data['energy'],
-                    'Absorption_Normalized': exp_data['absorption']
-                })
-                exp_csv = df_exp.to_csv(index=False, float_format="%.3f")
-                zip_file.writestr("experimental_spectrum.csv", exp_csv)
+            for fn in files_to_zip:
+                zip_file.write(fn, arcname=fn.name)
+        bytes = b64encode((tmpdir / zip_fn).read_bytes()).decode("ascii")
+        download_data = {"content": bytes,
+                         "base64": True,
+                         "type": "application/zip",
+                         "filename": zip_fn.name}
 
-            # 2. Add structural/predicted data
-            if not selected_items:
-                # Fallback to active structure if nothing selected
-                if st_data is not None:
-                    st = Structure.from_dict(st_data)
-                    d_xas = st_data.get('xas', {})
-
-                    # Try to get a name for the folder
-                    # Note: st_data is a pymatgen dict, might not have a direct name field
-                    # but we can try to guess or use 'Active_Structure'
-                    folder_name = st_data.get('label', 'Active_Structure')
-
-                    if not d_xas:
-                        site_idxs = ["Energy"]
-                        specs = np.array([ene_grid[el]])
-                    else:
-                        site_idxs = ["Energy"] + [f'Atom #{int(i) + 1}' for i in d_xas.keys()] + ["Mean"]
-
-                        d_xas_values = [np.array(v) for v in d_xas.values()]
-                        specs_array = np.array(d_xas_values)
-                        mean_spectrum = specs_array.mean(axis=0)
-
-                        specs = np.stack([ene_grid[el]] + d_xas_values + [mean_spectrum])
-
-                    df = pd.DataFrame(specs.T, columns=site_idxs)
-
-                    # POSCAR
-                    zip_file.writestr(f"{folder_name}/POSCAR", st.to(fmt='poscar'))
-                    # Predicted Spectrum
-                    csv_content = df.to_csv(index=False, float_format="%.3f")
-                    zip_file.writestr(f"{folder_name}/predicted_spectrum.csv", csv_content)
-            else:
-                # Download all selected items
-                for entry in selected_items:
-                    sid = entry['structure_id']
-                    st_dict = entry.get('structure_dict')
-                    if not st_dict: continue
-
-                    st = Structure.from_dict(st_dict)
-                    d_xas = st_dict.get('xas', {})
-
-                    # POSCAR
-                    zip_file.writestr(f"{sid}/POSCAR", st.to(fmt='poscar'))
-
-                    # Predicted Spectrum CSV (Transposed)
-                    if d_xas:
-                        site_idxs = ["Energy"] + [f'Atom #{int(i) + 1}' for i in d_xas.keys()]
-                        ene = np.array(entry['energy'])
-                        specs = np.stack([ene] + [np.array(v) for v in d_xas.values()])
-                        df = pd.DataFrame(specs.T, columns=site_idxs)
-                        csv_content = df.to_csv(index=False, float_format="%.3f")
-                        zip_file.writestr(f"{sid}/predicted_spectrum.csv", csv_content)
-                    else:
-                        ene = np.array(entry.get('energy', ene_grid[el]))
-                        df = pd.DataFrame(ene, columns=["Energy"])
-                        csv_content = df.to_csv(index=False, float_format="%.3f")
-                        zip_file.writestr(f"{sid}/predicted_spectrum.csv", csv_content)
-
-        return dcc.send_file(str(zip_fn))
-
-
+    return download_data
 
 
 @app.callback(
@@ -2046,23 +1900,11 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
                 failed_ids.append(f"{mpid} (no {element})")
                 continue
             print(f"Predicting spectrum for {mpid} with element {element} and theory {theory}")
-            raw_specs = predict(st, element, theory)
-            if len(raw_specs) == 0:
+            specs = predict(st, element, theory)
+            if len(specs) == 0:
                 failed += 1
                 failed_ids.append(f"{mpid} (no spectrum)")
                 continue
-
-            specs = raw_specs
-            if shakeup_val == "yes" and el_type == "Ti VASP":
-                new_specs = {}
-                orig_ene = ene_grid["Ti"]
-                for k, v in raw_specs.items():
-                    shaken = shakeupSpectrum(
-                        np.column_stack((orig_ene, v)),
-                        _Aw, pad_right=10, truncate_right=0.5
-                    )
-                    new_specs[k] = np.interp(orig_ene, shaken[:, 0], shaken[:, 1]).tolist()
-                specs = new_specs
 
             specs_array = np.array(list(specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
@@ -2092,12 +1934,7 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
                 "spectrum": predicted_spectrum.tolist(),
                 "energy": energy,
                 "element": element,
-                "selected": was_selected,
-                "structure_dict": {
-                    **st.as_dict(),
-                    "xas": specs,
-                    "raw_xas": raw_specs,
-                }
+                "selected": was_selected
             })
 
             if match_result["comparison_range"] is not None:
@@ -2105,7 +1942,6 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
 
             st_dict = st.as_dict()
             st_dict["xas"] = specs
-            st_dict["raw_xas"] = raw_specs
             last_st_dict = st_dict
             last_mpid = mpid
             successful += 1
@@ -2150,8 +1986,8 @@ def decorate_structure_with_xas(st: Structure, el_type, apply_shakeup=False):
     absorbing_site, spectroscopy_type = el_type.split(' ')
     st_dict = st.as_dict()
     if absorbing_site in st.composition:
-        raw_specs = predict(st, absorbing_site, spectroscopy_type)
-        specs = raw_specs
+        print("XAS Spectrum generated for structure:", st, absorbing_site, spectroscopy_type)
+        specs = predict(st, absorbing_site, spectroscopy_type)
         if apply_shakeup and el_type == 'Ti VASP':
             new_specs = {}
             for k, v in specs.items():
@@ -2163,12 +1999,10 @@ def decorate_structure_with_xas(st: Structure, el_type, apply_shakeup=False):
                 shaken_interp = np.interp(orig_ene, shaken[:, 0], shaken[:, 1])
                 new_specs[k] = shaken_interp.tolist()
             specs = new_specs
-
+            
         st_dict['xas'] = specs
-        st_dict['raw_xas'] = raw_specs
     else:
         st_dict['xas'] = {}
-        st_dict['raw_xas'] = {}
     return st_dict
 
 def parse_structure_file(contents, filename):
@@ -2286,13 +2120,13 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                 continue
 
             # Generate XAS spectrum
-            raw_specs = predict(st, element, el_type.split(' ')[1])
-            specs = raw_specs
-
+            print("XAS Spectrum generated for structure:", st, element, el_type.split(' ')[1])
+            specs = predict(st, element, el_type.split(' ')[1])
+            
             if shakeup_val == 'yes' and el_type == 'Ti VASP':
                 orig_ene = ene_grid['Ti']
                 new_specs = {}
-                for k, v in raw_specs.items():
+                for k, v in specs.items():
                     shaken = shakeupSpectrum(np.column_stack((orig_ene, v)), _Aw, pad_right=10, truncate_right=0.5)
                     new_specs[k] = np.interp(orig_ene, shaken[:, 0], shaken[:, 1]).tolist()
                 specs = new_specs
@@ -2339,8 +2173,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                 'spectrum': predicted_spectrum.tolist(),
                 'energy': energy,
                 'element': element,
-                'selected': was_selected,
-                'structure_dict': st_dict
+                'selected': was_selected
             })
 
             # Keep track of comparison range from last successful processing
@@ -2350,7 +2183,6 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             # Store last structure for display
             st_dict = st.as_dict()
             st_dict['xas'] = specs
-            st_dict['raw_xas'] = raw_specs
             last_st_dict = st_dict
             last_filename = filename
 
@@ -2539,26 +2371,26 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
         if x_start < x_end and (x_end - x_start) > 5:
             pad_x = (x_end - x_start) * 0.1
             x_min, x_max = x_start - pad_x, x_end + pad_x
-
+            
             layout_config['xaxis'] = dict(
-                range=[x_min, x_max], minallowed=x_min, maxallowed=x_max,
+                range=[x_min, x_max], minallowed=x_min, maxallowed=x_max, 
                 autorange=False, title=x_axis_label
             )
-
-            y_vals = np.concatenate([np.array(t.y)[(np.array(t.x) >= x_min) & (np.array(t.x) <= x_max)]
+            
+            y_vals = np.concatenate([np.array(t.y)[(np.array(t.x) >= x_min) & (np.array(t.x) <= x_max)] 
                                      for t in fig.data if t.x is not None and t.y is not None] or [[]])
-
+            
             if y_vals.size > 0:
                 y_min, y_max = np.nanmin(y_vals), np.nanmax(y_vals)
                 pad_y = max((y_max - y_min) * 0.1, 0.1)
-
+                
                 layout_config['yaxis'] = dict(
-                    range=[y_min - pad_y, y_max + pad_y], minallowed=y_min - pad_y,
+                    range=[y_min - pad_y, y_max + pad_y], minallowed=y_min - pad_y, 
                     maxallowed=y_max + pad_y, autorange=False, title=y_axis_label
                 )
-
+            
             print(f"=== Plot x-axis range set to: {x_min:.1f} - {x_max:.1f} eV ===")
-
+    
     fig.update_layout(**layout_config)
     return fig
 
@@ -2725,13 +2557,12 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     Input('clear_scores_btn', 'n_clicks'),
     Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
     Input('sort_metric_store', 'data'),
-    Input('shakeup-store', 'data'),
     State('structure_scores_store', 'data'),
     State('st_source', 'children'),
     State('absorber', 'value'),
     prevent_initial_call=True
 )
-def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
+def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
 
@@ -2814,8 +2645,7 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         'spectrum': predicted_spectrum.tolist(),
         'energy': energy,
         'element': element,
-        'selected': was_selected,
-        'structure_dict': st_data # Preserve the structure dictionary for downloads
+        'selected': was_selected
     })
 
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
