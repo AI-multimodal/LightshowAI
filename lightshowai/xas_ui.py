@@ -377,6 +377,31 @@ def on_new_tiled_spectrum(update):
         import traceback
         traceback.print_exc()
 
+def get_current_structure_label(st_data, structure_source=None):
+    """
+    Return a clean structure label for plot legends.
+
+    Prefer labels stored directly on the structure dict. Fall back to parsing
+    st_source only for older paths.
+    """
+    if isinstance(st_data, dict):
+        for key in ("label", "structure_id", "filename", "material_id"):
+            value = st_data.get(key)
+            if value:
+                return str(value)
+
+    if structure_source and isinstance(structure_source, str):
+        if structure_source.startswith("Current structure:"):
+            return structure_source.split(":", 1)[1].strip()
+
+        # Avoid using batch summary text as a legend label.
+        if structure_source.startswith("Batch loaded:") or structure_source.startswith("Loaded "):
+            return None
+
+        return structure_source
+
+    return None
+
 def update_tiled_lightshowai_metadata(exp_data, metadata):
     """
     Update Tiled metadata for the experimental spectrum.
@@ -2478,9 +2503,12 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
 
             st_dict = st.as_dict()
             st_dict["xas"] = specs
+            st_dict["label"] = mpid
+            st_dict["material_id"] = mpid
+            st_dict["structure_id"] = mpid
+
             last_st_dict = st_dict
             last_mpid = mpid
-            successful += 1
 
         except Exception as e:
             print(f"Error processing {mpid}: {e}")
@@ -2488,7 +2516,7 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
             traceback.print_exc()
             failed += 1
             failed_ids.append(mpid)
-
+    existing_scores = mark_active_structure_selected(existing_scores, last_mpid)
     existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
 
     if successful == 0:
@@ -2617,6 +2645,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     Handle batch upload of multiple structure files.
     Parse each file, generate XAS spectrum, and compare with experimental data.
     """
+    
     if contents_list is None or len(contents_list) == 0:
         raise PreventUpdate
 
@@ -2636,6 +2665,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     failed_files = []
     last_st_dict = None
     last_filename = None
+    last_structure_id = None
     comparison_range = None
 
     for contents, filename in zip(contents_list, filenames_list):
@@ -2718,9 +2748,14 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
 
             # Store last structure for display
             st_dict = st.as_dict()
-            st_dict['xas'] = specs
+            st_dict["xas"] = specs
+            st_dict["label"] = pathlib.Path(filename).stem
+            st_dict["filename"] = filename
+            st_dict["structure_id"] = structure_id
+
             last_st_dict = st_dict
             last_filename = filename
+            last_structure_id = structure_id
 
             successful += 1
 
@@ -2732,7 +2767,9 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             failed_files.append(filename)
 
     # Sort scores by current metric
+    existing_scores = mark_active_structure_selected(existing_scores, last_structure_id)
     existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
+    
 
     # Build status message
     if successful > 0 and failed == 0:
@@ -2746,10 +2783,8 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
         status_msg = html.Span(f"✗ Failed to process all {failed} file(s)", style={'color': 'red'})
 
     # Update source text
-    if successful == 1:
-        source_text = f"Current structure: {last_filename}"
-    elif successful > 1:
-        source_text = f"Batch loaded: {successful} structures"
+    if successful > 0:
+        source_text = f"Current structure: {pathlib.Path(last_filename).stem}"
     else:
         source_text = "No structures loaded"
 
@@ -2945,12 +2980,8 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
     if st_data is None and exp_data is None:
         raise PreventUpdate
 
-    current_structure_id = None
-    if structure_source and isinstance(structure_source, str):
-        if ":" in structure_source:
-            current_structure_id = structure_source.split(":")[-1].strip()
-        else:
-            current_structure_id = structure_source
+    current_structure_id = get_current_structure_label(st_data, structure_source)
+    
 
     selected_spectra = None
     if structure_scores:
@@ -2992,12 +3023,7 @@ def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, com
     if st_data is None:
         raise PreventUpdate
 
-    current_structure_id = None
-    if structure_source and isinstance(structure_source, str):
-        if ":" in structure_source:
-            current_structure_id = structure_source.split(":")[-1].strip()
-        else:
-            current_structure_id = structure_source
+    current_structure_id = get_current_structure_label(st_data, structure_source)
 
     specs = st_data['xas']
     element = el_type.split(' ')[0]
@@ -3184,7 +3210,9 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         'selected': was_selected
     })
 
+    updated_scores = mark_active_structure_selected(updated_scores, structure_id)
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
+
     return updated_scores, build_scores_table(updated_scores, sort_metric), match_result['comparison_range']
 
 def build_matching_metadata(exp_data, scores, top_n=3):
@@ -3228,6 +3256,27 @@ def build_matching_metadata(exp_data, scores, top_n=3):
         filename: structure_metadata
     }
 
+def mark_active_structure_selected(scores, active_structure_id, only_active=True):
+    """
+    Mark the currently displayed structure as checked in the score table.
+
+    If only_active=True, all other structures are unchecked so the table
+    matches the structure currently shown in the viewer/plot.
+    """
+    if not scores or not active_structure_id:
+        return scores
+
+    active_structure_id = str(active_structure_id)
+
+    for entry in scores:
+        is_active = str(entry.get("structure_id")) == active_structure_id
+
+        if is_active:
+            entry["selected"] = True
+        elif only_active:
+            entry["selected"] = False
+
+    return scores
 
 def sort_scores_by_metric(scores, metric):
     """Sort scores list by the given metric. For normed_wasserstein, lower is better (sort ascending)."""
