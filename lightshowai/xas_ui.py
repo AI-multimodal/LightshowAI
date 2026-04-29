@@ -87,6 +87,9 @@ _tiled_queue = queue.Queue()
 _tiled_listener_started = False
 _tiled_listener_lock = threading.Lock()
 _tiled_subscription = None
+_tiled_client = None
+_tiled_sandbox = None
+_tiled_client_lock = threading.Lock()
 
 _tiled_spectra_cache = {}
 _tiled_spectra_cache_lock = threading.Lock()
@@ -374,17 +377,73 @@ def on_new_tiled_spectrum(update):
         import traceback
         traceback.print_exc()
 
+def update_tiled_lightshowai_metadata(exp_data, metadata):
+    """
+    Update Tiled metadata for the experimental spectrum.
+    """
+    if exp_data is None:
+        raise ValueError("No experimental spectrum loaded")
+
+    tiled_key = exp_data.get("filename")
+    if not tiled_key:
+        raise ValueError("Experimental spectrum filename/key is missing")
+
+    sandbox = get_tiled_sandbox()
+
+    if tiled_key not in sandbox:
+        raise ValueError(
+            f"Could not find Tiled entry '{tiled_key}'. "
+            "Metadata update only works for spectra loaded from Tiled."
+        )
+
+    src = sandbox[tiled_key]
+
+    payload = {
+        "lightshowai_analysis": metadata
+    }
+
+    print("=== Updating Tiled metadata ===")
+    print(f"Tiled key: {tiled_key}")
+    print(json.dumps(payload, indent=2))
+    print("===============================")
+
+    src.update_metadata(payload)
+
+    return payload
+
+def get_tiled_sandbox():
+    """
+    Return the shared Tiled sandbox object.
+
+    Falls back to creating it only if the listener did not initialize it.
+    """
+    global _tiled_client, _tiled_sandbox
+
+    with _tiled_client_lock:
+        if _tiled_sandbox is not None:
+            return _tiled_sandbox
+
+    client = from_uri(TILED_URL, api_key=TILED_API_KEY)
+    sandbox = client[XAS_SANDBOX_URL]
+
+    with _tiled_client_lock:
+        _tiled_client = client
+        _tiled_sandbox = sandbox
+
+    return sandbox
+
 def start_tiled_listener():
-    global _tiled_listener_started, _tiled_subscription
+    global _tiled_listener_started, _tiled_subscription, _tiled_client, _tiled_sandbox
 
     with _tiled_listener_lock:
         if _tiled_listener_started:
             return
 
         print("Starting Tiled listener...")
-        client = from_uri(TILED_URL, api_key=TILED_API_KEY)
-        print("DEBUG Connected to Tiled server at", list(client[XAS_SANDBOX_URL]))
-        sandbox = client[XAS_SANDBOX_URL]
+        sandbox = get_tiled_sandbox()
+
+        print("DEBUG Connected to Tiled server at", list(sandbox))
+
         sub = sandbox.subscribe()
         sub.child_created.add_callback(on_new_tiled_spectrum)
         sub.start_in_thread()
@@ -1358,6 +1417,18 @@ def auto_apply_pending_load(raw_data, current_clicks, load_source):
     return (current_clicks or 0) + 1
 
 @app.callback(
+    Output("upload_metadata_container", "style"),
+    Input("tiled_poll_interval", "n_intervals"),
+    prevent_initial_call=False,
+)
+def toggle_upload_metadata_button_visibility(_):
+    if get_current_user() is None:
+        return {"display": "none"}
+
+    return {"display": "block"}
+
+
+@app.callback(
     Output("matching_metadata_store", "data"),
     Output("upload_metadata_status", "children"),
     Input("upload_metadata_btn", "n_clicks"),
@@ -1365,29 +1436,33 @@ def auto_apply_pending_load(raw_data, current_clicks, load_source):
     State("structure_scores_store", "data"),
     prevent_initial_call=True
 )
-def save_matching_metadata_to_store(n_clicks, exp_data, scores):
+def upload_matching_metadata_to_tiled(n_clicks, exp_data, scores):
     if not n_clicks:
         raise PreventUpdate
 
+    if get_current_user() is None:
+        return dash.no_update, html.Span(
+            "✗ Please log in before uploading metadata",
+            style={"color": "red"}
+        )
+
     try:
         metadata = build_matching_metadata(exp_data, scores, top_n=3)
-
-        print("=== Matching metadata ready for upload ===")
-        print(json.dumps(metadata, indent=2))
-        print("=========================================")
+        print("Analysis Meta Data", metadata)
+        payload = update_tiled_lightshowai_metadata(exp_data, metadata)
 
         return metadata, html.Span(
-            "✓ Metadata prepared and printed in backend logs",
+            "✓ Metadata uploaded to Tiled",
             style={"color": "green"}
         )
 
     except Exception as e:
-        print(f"Error preparing matching metadata: {e}")
+        print(f"Error uploading matching metadata to Tiled: {e}")
         import traceback
         traceback.print_exc()
 
         return dash.no_update, html.Span(
-            f"✗ Metadata preparation failed: {str(e)}",
+            f"✗ Metadata upload failed: {str(e)}",
             style={"color": "red"}
         )
 
