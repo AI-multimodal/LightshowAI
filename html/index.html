@@ -20,7 +20,7 @@
 </head>
 
 <body>
-	<div class="content">
+	<div class="content" style="background-color: #f5f5f5;">
 		<div id="BNL-mobile-menu">
 			<p id="siteMenuMobileHead" class="mobileMenuHead">Site Navigation<span
 					class="fa fa-angle-double-left fa-lg closeMobileMenuIcon"></span></p>
@@ -30,24 +30,26 @@
 			<p id="globalLinksMobileHead" class="mobileMenuHead">General Lab Information</p>
 			<ul id="globalLinksMobile"></ul>
 		</div>
+
 		<div id="header">
 			<div class="container_24">
 				<div class="grid_24">
 					<ul id="globalLinks" class="responsiveLinkList2">
-						<li><a href="https://www.bnl.gov/science/">Our Science</a>
-						<li><a href="https://www.bnl.gov/about/">About</a>
-						<li><a href="https://www.bnl.gov/bnlweb/admin/deptcodes.php">Departments</a>
-						<li><a href="https://www.bnl.gov/partner/">Partner With Us</a>
-						<li><a target="_blank" href="https://jobs.bnl.gov/">Careers</a>
-						<li><a href="https://www.bnl.gov/newsroom/">News</a>
-						<li><a href="https://www.bnl.gov/contact-us/">Contact</a>
-						<li><a href="https://www.bnl.gov/directory/">Directory</a>
-						<li><a href="javascript:void(0);" class="gd-link"><span class="fa fa-search"></span> Search</a>
+						<li><a href="https://www.bnl.gov/science/">Our Science</a></li>
+						<li><a href="https://www.bnl.gov/about/">About</a></li>
+						<li><a href="https://www.bnl.gov/bnlweb/admin/deptcodes.php">Departments</a></li>
+						<li><a href="https://www.bnl.gov/partner/">Partner With Us</a></li>
+						<li><a target="_blank" rel="noopener" href="https://jobs.bnl.gov/">Careers</a></li>
+						<li><a href="https://www.bnl.gov/newsroom/">News</a></li>
+						<li><a href="https://www.bnl.gov/contact-us/">Contact</a></li>
+						<li><a href="https://www.bnl.gov/directory/">Directory</a></li>
+						<li><a href="javascript:void(0);" class="gd-link"><span class="fa fa-search"></span> Search</a></li>
 						<li class="auth-widget" style="float:right;"></li>
 					</ul>
 				</div>
 			</div>
 		</div>
+
 		<div class="gd" id="gd-8">
 			<div class="container_24">
 				<div class="grid_10 prefix_1 suffix_1">
@@ -62,8 +64,7 @@
 					</form>
 				</div>
 				<div class="grid_10 prefix_1">
-					<form class="homePageSearchForm peopleSearchForm" method="post"
-						action="https://www.bnl.gov/search/">
+					<form class="homePageSearchForm peopleSearchForm" method="post" action="https://www.bnl.gov/search/">
 						<span class="fa fa-user fa-3x"></span>
 						<div>
 							<input class="BNLinput peopleSearchField" name="q1" type="text" value="" maxlength="256"
@@ -82,7 +83,9 @@
 				</div>
 			</div>
 		</div>
+
 		<div class="clear"></div>
+
 		<div id="stripe" style="margin-bottom: 0; padding-bottom: 6px;">
 			<div class="container_24" id="banner">
 				<div class="grid_24">
@@ -90,14 +93,13 @@
 					<span id="mobileSearchTrigger" class="fa fa-search"></span>
 					<a id="bnlLogoLink" title="BNL Homepage" href="https://www.bnl.gov">
 						<img class="BNLlogo black" title="BNL Homepage" src="assets/images/bnl-logo-2021.svg" />
-						<img class="BNLlogo white-gray" title="BNL Homepage"
-							src="assets/images/bnl-logo-white-2021.svg" />
+						<img class="BNLlogo white-gray" title="BNL Homepage" src="assets/images/bnl-logo-white-2021.svg" />
 					</a>
-                    <div id="siteTitleContainer">
-                        <span style="display:block; margin:0; padding:0; font-weight: 400;">LightshowAI</span>
-                        <span class="small" style="display:block; margin:0; padding:0; font-weight: 400;">A ML-enhanced
-                            interactive XANES analysis environment</span>
-                    </div>
+					<div id="siteTitleContainer">
+						<span style="display:block; margin:0; padding:0; font-weight: 400;">LightshowAI</span>
+						<span class="small" style="display:block; margin:0; padding:0; font-weight: 400;">A ML-enhanced
+							interactive XANES analysis environment</span>
+					</div>
 					<div id="bs-blurb">Graph neural network base XAS prediction</div>
 					<a id="doeLogoLink" title="DOE Office of Science" href="http://science.energy.gov/">
 						<img class="DOElogo black" title="DOE Office of Science"
@@ -109,56 +111,77 @@
 			</div>
 		</div>
 
-        <div class="tabs" style="margin: 0; padding: 0; border: none; position: relative;">
-            <div id="visitor-counter" class="desktop-counter">
-                <span class="fa fa-eye"></span> Total visits: <span id="visitor-count">—</span>
-            </div>
+		<div class="tabs"
+			style="margin: 0; padding: 0; border: none; position: relative; display: flex; flex-direction: column; flex-grow: 1;">
+			<div id="visitor-counter" class="desktop-counter">
+				<span class="fa fa-eye"></span> Total visits: <span id="visitor-count">—</span>
+			</div>
 
-            <ul style="border-radius: 0; padding-top: 10px;">
-                <li><a href="#app-tab">Demo</a></li>
-                <li><a href="#info-tab">About & License</a></li>
-            </ul>
+			<ul style="border-radius: 0; padding-top: 10px; background: #fff !important;">
+				<li><a href="#app-tab">Demo</a></li>
+				<li><a href="#manual-tab">Manual</a></li>
+				<li><a href="#info-tab">About</a></li>
+				<li><a href="#license-tab">License</a></li>
+			</ul>
 
-			<!-- lightshowai -->
+			<!-- LightshowAI demo tab -->
 			<div id="app-tab" style="padding: 0;">
-					<script>
-						document.addEventListener('DOMContentLoaded', () => {
-							const iframe = document.getElementById('dash-app');
-							let height = window.innerHeight * 0.8;
-							iframe.style.height = `${height}px`;
-
-							window.forceDashResize = () => {
-								try {
-									const doc = iframe.contentDocument || iframe.contentWindow.document;
-									const newH = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
-									if (newH > height) iframe.style.height = `${height = newH}px`;
-								} catch (e) {}
-							};
-
-							setInterval(window.forceDashResize, 200);
-						});
-					</script>
 				<iframe id="dash-app" src="/omnixas/" scrolling="no"
 					style="width: 100%; border: 0; display: block; overflow: hidden; height: 80vh;"></iframe>
 			</div>
 
-			<!-- about/license/funding tab -->
-			<div id="info-tab" style="background-color: #f5f5f5; padding: 20px 0;">
+			<!-- Manual tab -->
+			<div id="manual-tab"
+				style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
 				<div class="container_24">
-					<h2 style="padding-top:12px">About</h2>
-					<p>
-						<strong>Lightshowai</strong> is a web user interface to predict the x-ray absorption
-						near edge structure (XANES) spectra using neural network models. Currently, the models we
-						provide are OmniXAS models of 3d transition metal (Ti-Cu) K-edge at two levels of theory: FEFF
-						model for all the 8 elements and VASP models for Ti and Cu only. We recommend users of
-						Lightshowai to cite the following references: Benchmark [Phys. Rev. Materials 8, 013801 (2024)],
-						Lightshow [Journal of Open Source Software 8 (87), 5182 (2023)], and OmniXAS [Phys. Rev.
-						Materials 9, 043803 (2025)]. Please contact <a href="mailto:dlu@bnl.gov">Deyu Lu
-							(dlu@bnl.gov)</a> if you have questions.
-					</p>
-					<div class="grid_12 alpha">
+					<div class="grid_24">
+						<h2>Manual</h2>
+						<p style="font-size: 1.1em; color: #333; line-height: 1.6;">Shake-up effects:</p>
+						<p>
+							Shake-up effects in X-ray Absorption Spectroscopy (XAS) arise from the simultaneous
+							excitation of valence electrons during a core-level transition. While these many-body
+							effects manifest as satellite peaks in X-ray photoemission spectroscopy, they represent
+							physics beyond the standard quasiparticle approximation typically used in simulations.
+						</p>
+						<p>
+							Currently, the shake-up implementation in LightshowAI is validated exclusively for
+							VASP-based simulations of the Ti K-edge in materials featuring a TiO<sub>6</sub>
+							octahedral motif, including:
+						</p>
+						<ul>
+							<li><strong>Perovskites:</strong> SrTiO<sub>3</sub>, CaTiO<sub>3</sub>, BaTiO<sub>3</sub></li>
+							<li><strong>TiO<sub>2</sub> Polymorphs:</strong> Rutile, Anatase, Brookite</li>
+							<li><strong>Mixed Oxides:</strong> NiTiO<sub>3</sub>, FeTiO<sub>3</sub></li>
+						</ul>
+						<p>
+							Users are advised to exercise caution when applying these corrections to chemical species
+							or simulation frameworks outside of the Ti-VASP model. Comprehensive theoretical details
+							and further benchmarks will be provided in an upcoming manuscript.
+						</p>
+					</div>
+					<div class="clear"></div>
+				</div>
+			</div>
+
+			<!-- About/funding tab -->
+			<div id="info-tab"
+				style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
+				<div class="container_24">
+					<div class="grid_24">
+						<h2>About</h2>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 2em;">
+							<strong>LightshowAI</strong> is a web user interface to predict the x-ray absorption
+							near edge structure (XANES) spectra using neural network models. Currently, the models we
+							provide are OmniXAS models of 3d transition metal (Ti-Cu) K-edge at two levels of theory:
+							FEFF model for all the 8 elements and VASP models for Ti and Cu only. We recommend users
+							of LightshowAI to cite the following references: Benchmark [Phys. Rev. Materials 8, 013801
+							(2024)], Lightshow [Journal of Open Source Software 8 (87), 5182 (2023)], and OmniXAS
+							[Phys. Rev. Materials 9, 043803 (2025)]. Please contact <a href="mailto:dlu@bnl.gov">Deyu Lu
+								(dlu@bnl.gov)</a> if you have questions.
+						</p>
+
 						<h2>Funding acknowledgment</h2>
-						<p>This research is based upon work supported by the U.S. Department of Energy, Office of
+						<p style="font-size: 1.1em; line-height: 1.6;">This research is based upon work supported by the U.S. Department of Energy, Office of
 							Science, Office Basic Energy Sciences, under Award Number FWP PS-030. This research used the
 							Theory and Computation resources of the Center for Functional Nanomaterials (CFN), which is
 							a U.S. Department of Energy Office of Science User Facility, at Brookhaven National
@@ -168,10 +191,17 @@
 							irrevocable worldwide license in this computer software and data to reproduce, prepare
 							derivative works, and perform publicly and display publicly.</p>
 					</div>
+					<div class="clear"></div>
+				</div>
+			</div>
 
-					<div class="grid_12 omega">
+			<!-- License tab -->
+			<div id="license-tab"
+				style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
+				<div class="container_24">
+					<div class="grid_24">
 						<h2>BSD 3-Clause License</h2>
-						<p style="font-size: 0.9em; color: #555;">THE SOFTWARE IS SUPPLIED "AS IS" WITHOUT WARRANTY OF
+						<p style="font-size: 1.1em; color: #333; line-height: 1.6;">THE SOFTWARE IS SUPPLIED "AS IS" WITHOUT WARRANTY OF
 							ANY KIND. THE UNITED STATES, THE UNITED STATES DEPARTMENT OF ENERGY, AND THEIR EMPLOYEES:
 							(1) DISCLAIM ANY WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY IMPLIED
 							WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE OR NON-INFRINGEMENT,
@@ -188,9 +218,10 @@
 			</div>
 		</div>
 		<!-- END OF PAGE CONTENT -->
-
 	</div>
+
 	<div id="topOfPage"><span class="fa fa-chevron-circle-up fa-lg topOfPageTrigger"></span></div>
+
 	<div class="footer" id="footer" style="margin-top: 0;">
 		<div class="container_24">
 			<div class="grid_6">
@@ -199,17 +230,17 @@
 				<p><a id="contactUs" class="extrasmall white button" href="https://www.bnl.gov/contact-us/">Contact
 						us</a></p>
 				<ul class="socialMediaIcons">
-					<li><a target="_blank" href="https://twitter.com/BrookhavenLab" title="Follow Us on 𝕏"><i
+					<li><a target="_blank" rel="noopener" href="https://twitter.com/BrookhavenLab" title="Follow Us on 𝕏"><i
 								class="fa-brands fa-square-x-twitter fa-2x"></i></a></li>
-					<li><a target="_blank" href="https://www.facebook.com/brookhavenlab"
+					<li><a target="_blank" rel="noopener" href="https://www.facebook.com/brookhavenlab"
 							title="Follow Us on Facebook"><span class="fa fa-facebook-square fa-2x"></span></a></li>
-					<li><a target="_blank" href="https://www.instagram.com/brookhavenlab/"
+					<li><a target="_blank" rel="noopener" href="https://www.instagram.com/brookhavenlab/"
 							title="Follow Us on Instagram"><span class="fa fa-instagram fa-2x"></span></a></li>
-					<li><a target="_blank" href="https://www.linkedin.com/company/brookhavenlab/"
+					<li><a target="_blank" rel="noopener" href="https://www.linkedin.com/company/brookhavenlab/"
 							title="Follow Us on LinkedIn"><span class="fa fa-linkedin-square fa-2x"></span></a></li>
-					<li><a target="_blank" href="https://www.youtube.com/BrookhavenLab"
+					<li><a target="_blank" rel="noopener" href="https://www.youtube.com/BrookhavenLab"
 							title="Follow Us on YouTube"><span class="fa fa-youtube-square fa-2x"></span></a></li>
-					<li><a target="_blank" href="http://www.flickr.com/brookhavenlab/" title="Follow Us on Flickr"><span
+					<li><a target="_blank" rel="noopener" href="http://www.flickr.com/brookhavenlab/" title="Follow Us on Flickr"><span
 								class="fa fa-flickr fa-2x"></span></a></li>
 				</ul>
 			</div>
@@ -226,7 +257,7 @@
 			</div>
 			<div class="grid_3">
 				<ul class="linkList2">
-					<li><a target="_blank" href="https://jobs.bnl.gov/">Careers</a></li>
+					<li><a target="_blank" rel="noopener" href="https://jobs.bnl.gov/">Careers</a></li>
 					<li><a href="https://www.bnl.gov/science/facilities.php">Facilities</a></li>
 					<li><a href="https://www.bnl.gov/guv/">Guest Center</a></li>
 					<li><a href="https://www.bnl.gov/partner/">Partnerships</a></li>
@@ -241,7 +272,7 @@
 					<li><a href="https://www.bnl.gov/externalaffairs/">Stakeholder Relations</a></li>
 					<li><a href="https://www.bnl.gov/education/">Students &amp; Educators</a></li>
 					<li><a href="https://www.bnl.gov/privacy/">Privacy and Security Notice</a></li>
-					<li><a target="_blank" href="http://www.energy.gov/vulnerability-disclosure-policy">Vulnerability
+					<li><a target="_blank" rel="noopener" href="http://www.energy.gov/vulnerability-disclosure-policy">Vulnerability
 							Disclosure Program</a></li>
 				</ul>
 			</div>
@@ -260,50 +291,135 @@
 	<script src="assets/jquery//jquery.js"></script>
 	<script src="assets/jquery-ui/jquery-ui.min.js"></script>
 	<script src="assets/jquery-sidr/jquery.sidr.min.js"></script>
-	<script src='assets/jquery-cookie/jquery.cookie.js'></script>
+	<script src="assets/jquery-cookie/jquery.cookie.js"></script>
 	<script src="assets/jquery-finger/dist/jquery.finger.min.js"></script>
 	<script src="assets/js/bnl.js"></script>
 
 	<script>
-		$(document).ready(function () {
-			$(".tabs").tabs({
-				activate: function (event, ui) {
-					// forces resize of the iframe when going back to the demo tab
-					if (ui.newPanel.attr('id') === 'app-tab' && window.forceDashResize) {
-						window.forceDashResize();
+		(function () {
+			function setTextById(id, value) {
+				var el = document.getElementById(id);
+				if (el) el.textContent = value;
+			}
+
+			function setupDashIframeResize() {
+				var iframe = document.getElementById('dash-app');
+				if (!iframe) return;
+
+				var height = Math.ceil(window.innerHeight * 0.8);
+				iframe.style.height = height + 'px';
+
+				window.forceDashResize = function () {
+					try {
+						var doc = iframe.contentDocument || iframe.contentWindow.document;
+						if (!doc) return;
+
+						var docEl = doc.documentElement;
+						var body = doc.body;
+						var newHeight = Math.max(
+							docEl ? docEl.scrollHeight : 0,
+							body ? body.scrollHeight : 0,
+							height
+						);
+
+						if (newHeight > height) {
+							height = newHeight;
+							iframe.style.height = height + 'px';
+						}
+					} catch (e) {
+						// The iframe may be inaccessible if it is served cross-origin.
 					}
-				}
-			});
-			fetch('/visitor-count')
-				.then(function (r) { return r.json(); })
-				.then(function (data) {
-					document.getElementById('visitor-count').textContent = data.count;
-				})
-				.catch(function () {
-					document.getElementById('visitor-count').textContent = '—';
+				};
+
+				iframe.addEventListener('load', window.forceDashResize);
+				window.addEventListener('resize', function () {
+					var minimumHeight = Math.ceil(window.innerHeight * 0.8);
+					if (minimumHeight > height) {
+						height = minimumHeight;
+						iframe.style.height = height + 'px';
+					}
+					window.forceDashResize();
 				});
 
-			fetch('/auth/status')
-			.then(function (r) { return r.json(); })
-			.then(function (data) {
+				setInterval(window.forceDashResize, 200);
+			}
+
+			function loadVisitorCount() {
+				fetch('/visitor-count')
+					.then(function (r) { return r.json(); })
+					.then(function (data) {
+						setTextById('visitor-count', data && data.count != null ? data.count : '—');
+					})
+					.catch(function () {
+						setTextById('visitor-count', '—');
+					});
+			}
+
+			function renderAuthWidget(data) {
 				var widgets = document.querySelectorAll('.auth-widget');
-				var html;
-				if (data.authenticated) {
-					html =
-						'<span style="margin-right:8px; color:#fff;">' +
-							data.name + ' &middot; ' +
-							'<span style="opacity:0.8; font-size:0.9em;">' + data.email + '</span>' +
-						'</span>' +
-						'<a href="/logout" style="color:#fff;">Logout</a>';
-				} else {
-					html = '<a href="/login" style="color:#fff;">Login</a>';
-				}
-				widgets.forEach(function (w) { w.innerHTML = html; });
-			})
-			.catch(function () {
-				// auth status unavailable; leave widgets empty
+				widgets.forEach(function (widget) {
+					widget.innerHTML = '';
+
+					if (data && data.authenticated) {
+						var identity = document.createElement('span');
+						identity.style.marginRight = '8px';
+						identity.style.color = '#fff';
+
+						var name = data.name || 'User';
+						var email = data.email || '';
+						identity.appendChild(document.createTextNode(name));
+
+						if (email) {
+							identity.appendChild(document.createTextNode(' · '));
+							var emailSpan = document.createElement('span');
+							emailSpan.style.opacity = '0.8';
+							emailSpan.style.fontSize = '0.9em';
+							emailSpan.textContent = email;
+							identity.appendChild(emailSpan);
+						}
+
+						var logout = document.createElement('a');
+						logout.href = '/logout';
+						logout.style.color = '#fff';
+						logout.textContent = 'Logout';
+
+						widget.appendChild(identity);
+						widget.appendChild(logout);
+					} else {
+						var login = document.createElement('a');
+						login.href = '/login';
+						login.style.color = '#fff';
+						login.textContent = 'Login';
+						widget.appendChild(login);
+					}
+				});
+			}
+
+			function loadAuthStatus() {
+				fetch('/auth/status')
+					.then(function (r) { return r.json(); })
+					.then(renderAuthWidget)
+					.catch(function () {
+						// Auth status unavailable; leave auth widgets empty.
+					});
+			}
+
+			$(document).ready(function () {
+				setupDashIframeResize();
+
+				$('.tabs').tabs({
+					activate: function (event, ui) {
+						// Force a resize of the iframe when returning to the demo tab.
+						if (ui.newPanel.attr('id') === 'app-tab' && window.forceDashResize) {
+							window.forceDashResize();
+						}
+					}
+				});
+
+				loadVisitorCount();
+				loadAuthStatus();
 			});
-		});
+		})();
 	</script>
 </body>
 
