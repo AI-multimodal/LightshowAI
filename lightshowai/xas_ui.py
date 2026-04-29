@@ -1477,6 +1477,83 @@ def parse_file_columns(contents, filename):
         return {'error': str(e)}
 
 @app.callback(
+    Output("pending_spectra_store", "data", allow_duplicate=True),
+    Output("last_load_source_store", "data", allow_duplicate=True),
+    Output("exp_raw_data_store", "data", allow_duplicate=True),
+    Output("exp_columns_store", "data", allow_duplicate=True),
+    Output("exp_x_axis_dropdown", "options", allow_duplicate=True),
+    Output("exp_y_axis_dropdown", "options", allow_duplicate=True),
+    Output("exp_x_axis_dropdown", "value", allow_duplicate=True),
+    Output("exp_y_axis_dropdown", "value", allow_duplicate=True),
+    Output("exp_column_selection_area", "style", allow_duplicate=True),
+    Output("exp_column_definition_area", "children", allow_duplicate=True),
+    Output("exp_file_info", "children", allow_duplicate=True),
+    Output("exp_material_name", "value", allow_duplicate=True),
+    Output("exp-data-type-store", "data", allow_duplicate=True),
+    Output("exp_raw_energy_dropdown", "options", allow_duplicate=True),
+    Output("exp_raw_itiff_dropdown", "options", allow_duplicate=True),
+    Output("exp_raw_i0_dropdown", "options", allow_duplicate=True),
+    Output("exp_raw_energy_dropdown", "value", allow_duplicate=True),
+    Output("exp_raw_itiff_dropdown", "value", allow_duplicate=True),
+    Output("exp_raw_i0_dropdown", "value", allow_duplicate=True),
+    Output("exp_spectrum_store", "data", allow_duplicate=True),
+
+    # Clear structure / matching state when loading a new Tiled spectrum.
+    Output(struct_component.id(), "data", allow_duplicate=True),
+    Output("st_source", "children", allow_duplicate=True),
+    Output("structure_scores_store", "data", allow_duplicate=True),
+    Output("matching_results_table", "children", allow_duplicate=True),
+    Output("comparison_range_store", "data", allow_duplicate=True),
+    Output("selected_spectra_store", "data", allow_duplicate=True),
+    Output("matching_metadata_store", "data", allow_duplicate=True),
+    Output("upload_metadata_status", "children", allow_duplicate=True),
+    Output("batch_status", "children", allow_duplicate=True),
+
+    Input("pending_load_btn", "n_clicks"),
+    State("pending_spectra_dropdown", "value"),
+    State("pending_spectra_store", "data"),
+    prevent_initial_call=True,
+)
+def handle_load_click(n_clicks, selected_idx, pending):
+    if n_clicks is None or not pending or selected_idx is None:
+        raise PreventUpdate
+
+    if selected_idx >= len(pending):
+        raise PreventUpdate
+
+    entry = pending[selected_idx]
+    load_results = _load_pending_entry(entry)
+    updated_pending = [e for i, e in enumerate(pending) if i != selected_idx]
+
+    empty_scores_message = html.Div(
+        "Load structures to see matching scores",
+        style={
+            "color": "#999",
+            "fontSize": "12px",
+            "textAlign": "center",
+            "padding": "20px"
+        }
+    )
+
+    return (
+        updated_pending,
+        "pending",
+        *load_results,
+
+        # Fresh-start state for the new Tiled experimental spectrum.
+        None,                         # struct_component data
+        "No structure loaded yet",    # st_source
+        [],                           # structure_scores_store
+        empty_scores_message,         # matching_results_table
+        None,                         # comparison_range_store
+        [],                           # selected_spectra_store
+        None,                         # matching_metadata_store
+        "",                           # upload_metadata_status
+        "",                           # batch_status
+    )
+
+
+@app.callback(
     Output("pending_spectra_section", "style"),
     Output("pending_spectra_header", "children"),
     Output("pending_spectra_dropdown", "options"),
@@ -1615,43 +1692,6 @@ def render_format_toggle(current_val):
     return left, right, raw_extra_style, norm_style, raw_dropdown_style
 
 
-@app.callback(
-    Output("pending_spectra_store", "data", allow_duplicate=True),
-    Output("last_load_source_store", "data", allow_duplicate=True),
-    Output("exp_raw_data_store", "data", allow_duplicate=True),
-    Output("exp_columns_store", "data", allow_duplicate=True),
-    Output("exp_x_axis_dropdown", "options", allow_duplicate=True),
-    Output("exp_y_axis_dropdown", "options", allow_duplicate=True),
-    Output("exp_x_axis_dropdown", "value", allow_duplicate=True),
-    Output("exp_y_axis_dropdown", "value", allow_duplicate=True),
-    Output("exp_column_selection_area", "style", allow_duplicate=True),
-    Output("exp_column_definition_area", "children", allow_duplicate=True),
-    Output("exp_file_info", "children", allow_duplicate=True),
-    Output("exp_material_name", "value", allow_duplicate=True),
-    Output("exp-data-type-store", "data", allow_duplicate=True),
-    Output("exp_raw_energy_dropdown", "options", allow_duplicate=True),
-    Output("exp_raw_itiff_dropdown", "options", allow_duplicate=True),
-    Output("exp_raw_i0_dropdown", "options", allow_duplicate=True),
-    Output("exp_raw_energy_dropdown", "value", allow_duplicate=True),
-    Output("exp_raw_itiff_dropdown", "value", allow_duplicate=True),
-    Output("exp_raw_i0_dropdown", "value", allow_duplicate=True),
-    Output("exp_spectrum_store", "data", allow_duplicate=True),
-    Input("pending_load_btn", "n_clicks"),
-    State("pending_spectra_dropdown", "value"),
-    State("pending_spectra_store", "data"),
-    prevent_initial_call=True,
-)
-def handle_load_click(n_clicks, selected_idx, pending):
-    if n_clicks is None or not pending or selected_idx is None:
-        raise PreventUpdate
-    if selected_idx >= len(pending):
-        raise PreventUpdate
-
-    entry = pending[selected_idx]
-    load_results = _load_pending_entry(entry)
-    updated_pending = [e for i, e in enumerate(pending) if i != selected_idx]
-
-    return (updated_pending, "pending") + load_results
 
 @app.callback(
     Output("pending_spectra_store", "data", allow_duplicate=True),
