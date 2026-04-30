@@ -1,0 +1,24 @@
+[Unit]
+Description=LightshowAI plots — static HTTP server for ~/tmp/*.html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/tmp
+# Serve only ~/tmp/ on port 8001. Bind 0.0.0.0 so the EC2 SG controls who can hit it.
+ExecStart=/usr/bin/python3 -m http.server 8001 --bind 0.0.0.0 --directory /home/ubuntu/tmp
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=/home/ubuntu/tmp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

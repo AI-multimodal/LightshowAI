@@ -28,7 +28,7 @@ dependencies = [
     "crystal_toolkit>=2024.10.22",
     "dgl==2.1.0",
     "dash==3.4.0",
-    "lightning>=2.4.0",
+    "pytorch-lightning>=2.4.0",
     "matgl==0.8.5",
     "mp-api==0.41.2",
     "numpy<=1.26.4",

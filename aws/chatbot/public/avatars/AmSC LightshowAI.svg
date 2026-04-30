@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Assistant avatar — filename must match the assistant `name` from config.toml.
+     Chainlit looks up public/avatars/<name>.{png,svg} for the chat bubble icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <circle cx="32" cy="32" r="32" fill="#0F1419"/>
+  <polygon points="32,10 54,21 54,43 32,54 10,43 10,21" fill="none" stroke="#1F7BA8" stroke-width="2.5"/>
+  <polyline points="16,38 23,24 30,40 40,20 48,32" fill="none" stroke="#A4D65E" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

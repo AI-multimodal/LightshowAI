@@ -1,0 +1,113 @@
+/* AmSC LightshowAI — BNL teal/green accent on dark.
+ * Loaded via [UI] custom_css = "/public/custom.css" in .chainlit/config.toml.
+ *
+ * These overrides nudge the default Chainlit chrome toward the project's
+ * palette without touching layout. Tweak freely. */
+
+:root {
+  --amsc-cyan:   #4FC1E9;
+  --amsc-teal:   #1F7BA8;
+  --amsc-deep:   #155F84;
+  --amsc-lime:   #A4D65E;
+  --amsc-bg:     #0F1419;
+  --amsc-paper:  #1A2028;
+  --amsc-text:   #E8EEF2;
+  --amsc-muted:  #9AA8B5;
+}
+
+/* Hide the small "Built with Chainlit" watermark in the footer */
+a[href*="chainlit.io"],
+a[href*="getchainlit"],
+.watermark { display: none !important; }
+
+/* Chat bubbles — tighten the user bubble accent to BNL teal */
+.message-content[data-author="user"] {
+  border-left: 2px solid var(--amsc-teal);
+}
+
+/* Assistant message — subtle lime accent on the left */
+.message-content[data-author]:not([data-author="user"]) {
+  border-left: 2px solid var(--amsc-lime);
+}
+
+/* Tool-call Step boxes — give them a teal frame so they stand out from prose */
+[data-type="tool"] {
+  border: 1px solid #243240 !important;
+  background: #141a22 !important;
+  border-radius: 8px;
+}
+
+[data-type="tool"]:hover {
+  border-color: var(--amsc-teal) !important;
+}
+
+/* Iframes (XANES + structure plots) — soft border that matches the theme */
+iframe {
+  border: 1px solid #243240 !important;
+}
+
+/* Login screen — BNL accent on the Sign In button */
+button[type="submit"],
+button.MuiButton-containedPrimary {
+  background: linear-gradient(135deg, var(--amsc-teal) 0%, var(--amsc-deep) 100%) !important;
+}
+
+button[type="submit"]:hover {
+  background: linear-gradient(135deg, var(--amsc-cyan) 0%, var(--amsc-teal) 100%) !important;
+}
+
+/* Sidebar / header logo container — give it a touch of breathing room */
+.cl-logo, header img[alt*="logo"] {
+  max-height: 40px;
+  margin: 4px 8px;
+}
+
+/* ----------------------------------------------------------------------
+ * Welcome screen — enlarge the assistant avatar above the input box.
+ * Chainlit's avatar element class moves around between releases, so we
+ * target several known selectors with !important to cover all versions.
+ * ---------------------------------------------------------------------- */
+
+/* Generic avatar img — bumps small chip avatars too */
+img[alt*="vatar" i],
+.MuiAvatar-img {
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Welcome state: the centered "AmSC LightshowAI" header above the input
+   uses a noticeably larger avatar slot. Scale by class + parent shape. */
+.welcome-screen img,
+[class*="WelcomeScreen"] img,
+[class*="welcome"] img,
+.cl-empty-screen img,
+.empty-state img,
+.assistant-profile img,
+[class*="AssistantProfile"] img {
+  width: 96px !important;
+  height: 96px !important;
+  max-width: 96px !important;
+  max-height: 96px !important;
+  border-radius: 18px;
+}
+
+/* Same area — nudge the title text a bit larger so the new avatar size
+   reads as deliberate, not just "wrong proportions". */
+.welcome-screen h1,
+[class*="WelcomeScreen"] h1,
+[class*="welcome"] h1,
+.cl-empty-screen h1,
+.empty-state h1,
+.assistant-profile h2,
+[class*="AssistantProfile"] h2 {
+  font-size: 1.85rem !important;
+  line-height: 1.2 !important;
+}
+
+/* In-chat assistant bubble avatar — keep small (don't blow up every
+   message); only the welcome-state hero avatar is enlarged above. */
+.message-row .MuiAvatar-root,
+[class*="message"] .MuiAvatar-root {
+  width: 32px;
+  height: 32px;
+}

@@ -4,7 +4,7 @@ from typing import List
 
 import numpy as np
 import torch
-from lightning import LightningModule
+from pytorch_lightning import LightningModule
 from matgl import load_model
 from matgl.ext.pymatgen import Structure2Graph
 from matgl.graph.compute import (

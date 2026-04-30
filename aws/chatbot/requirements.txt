@@ -1,0 +1,18 @@
+# Chainlit chatbot stack
+chainlit>=2.0
+claude-agent-sdk>=0.1.0
+python-dotenv>=1.0
+
+# MCP server runtime (all servers use FastMCP)
+mcp>=1.0
+
+# materials-project MCP server deps
+mp-api==0.41.2
+emmet-core==0.84.3rc0
+
+# mlflow-amsc MCP server deps
+mlflow>=2.16
+urllib3>=2.0
+
+# lightshowai MCP server pulls in the LightshowAI package itself,
+# which is installed separately via setup.sh from the local repo (editable install).

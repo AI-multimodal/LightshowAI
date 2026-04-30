@@ -1,0 +1,102 @@
+[project]
+# Whether to enable telemetry (default: true). No personal data is collected.
+enable_telemetry = false
+
+# List of environment variables to be provided by each user to use the app.
+user_env = []
+
+# Duration (in seconds) during which the session is saved when the connection is lost
+session_timeout = 3600
+
+# Enable third-party caching (turn off for stateless deployments)
+cache = false
+
+# Authorized origins (CORS). Leave empty to allow same-origin only.
+allow_origins = ["*"]
+
+[features]
+# Show the prompt playground in the UI
+prompt_playground = false
+
+# Process and display HTML in messages.
+unsafe_allow_html = true
+
+# Process and display mathematical expressions in the user message and resp
+latex = true
+
+# Auto-tag thread with the current chat profile (if a chat profile is used)
+auto_tag_thread = true
+
+# Authorize users to spontaneously upload files with messages
+[features.spontaneous_file_upload]
+    enabled = true
+    accept = ["*/*"]
+    max_files = 5
+    max_size_mb = 50
+
+[features.audio]
+    # Sample rate of the audio
+    sample_rate = 24_000
+
+[UI]
+# Name of the assistant.
+name = "AmSC LightshowAI"
+
+# Description of the app and chatbot. Shown on the chat page.
+description = "XANES analysis assistant — predict K-edge spectra and crystal structures via OmniXAS and the Materials Project."
+
+# Show the readme while the conversation is empty.
+default_collapse_content = true
+
+# Hide the chain of thought details from the user in the UI.
+cot = "tool_call"
+
+# Specify a custom CSS file injected into the head element of the chatbot frontend
+custom_css = "/public/custom.css"
+
+# Specify a custom font URL or local path
+# custom_font = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+
+# Specify additional attributes for a custom meta tag (advanced)
+# custom_meta_tags = []
+
+# Specify a custom build directory for the frontend.
+# This can be used to customize the frontend code.
+# Be careful: changing this requires a custom frontend build.
+# custom_build = "./public/build"
+
+[UI.theme]
+    default = "dark"
+    layout = "wide"
+    font_family = "Inter, system-ui, -apple-system, sans-serif"
+
+    # BNL teal/green accent on a deep slate dark background.
+    [UI.theme.dark]
+        background = "#0F1419"
+        paper = "#1A2028"
+            [UI.theme.dark.primary]
+                main = "#1F7BA8"      # BNL teal
+                dark = "#155F84"
+                light = "#4FC1E9"     # BNL cyan
+            [UI.theme.dark.secondary]
+                main = "#A4D65E"      # BNL lime green
+                dark = "#7FB23E"
+                light = "#C4E68C"
+            [UI.theme.dark.text]
+                primary = "#E8EEF2"
+                secondary = "#9AA8B5"
+
+    [UI.theme.light]
+        background = "#FAFCFD"
+        paper = "#FFFFFF"
+            [UI.theme.light.primary]
+                main = "#1F7BA8"
+                dark = "#155F84"
+                light = "#4FC1E9"
+            [UI.theme.light.secondary]
+                main = "#7FB23E"
+                dark = "#5C8A2A"
+                light = "#A4D65E"
+
+[meta]
+generated_by = "AmSC empowered LightshowAI chatbot"
