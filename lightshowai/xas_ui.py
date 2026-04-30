@@ -73,6 +73,7 @@ from lightshowai.auth import init_auth, get_current_user
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.environ["TILED_API_KEY"]
 XAS_SANDBOX_URL = os.environ["XAS_SANDBOX_URL"]
+CHATBOT_URL = os.getenv("OMNIXAS_CHATBOT_URL", "http://localhost:8445")
 
 if not TILED_URL:
     raise RuntimeError("TILED_URL is not set")
@@ -1277,6 +1278,39 @@ onmixas_layout = html.Div([
                 ], style=card_style)
             ]),
             style={"flex": "1.5", "minWidth": "150px", "padding": "0 6px"}
+        ),
+
+        # Column 4: Agentic Chatbot
+        Column(
+            [
+                html.Div([
+                    html.Div("LightshowAI Chatbot", style=column_header_style),
+                    html.Div(
+                        [
+                            html.Iframe(
+                                id="chatbot_iframe",
+                                src=CHATBOT_URL,
+                                style={
+                                    "width": "100%",
+                                    "height": "900px",
+                                    "border": "1px solid #e5e5e5",
+                                    "borderRadius": "6px",
+                                    "backgroundColor": "#fff",
+                                },
+                                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads",
+                            ),
+                            html.Div(
+                                [
+                                    html.Span("Chat URL: ", style={"fontWeight": "600"}),
+                                    html.A(CHATBOT_URL, href=CHATBOT_URL, target="_blank", rel="noopener noreferrer"),
+                                ],
+                                style={"fontSize": "11px", "color": "#666", "marginTop": "8px", "wordBreak": "break-all"},
+                            ),
+                        ]
+                    ),
+                ], style=card_style),
+            ],
+            style={"flex": "1", "minWidth": "320px", "padding": "0 6px", "alignSelf": "flex-start"}
         ),
     ],
     desktop_only=False,
