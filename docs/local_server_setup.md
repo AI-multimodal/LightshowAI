@@ -5,21 +5,23 @@ Please feel free to correct or edit as required.
 
 # Local Setup
 
-This guide explains how to run the LightshowAI HTML page and XAS app locally in WSL before deploying.
+This guide explains how to run the LightshowAI HTML page, XAS app, and optional chatbot locally on Linux before deploying.
 
 ## Overview
 
-This local setup has two parts:
+This local setup has two main parts, plus an optional chatbot proxy:
 
 * **Apache** serves the static site from the repo’s `html/` folder.
 * **XAS app** runs locally and is exposed through Apache at `/omnixas/`.
+* **Chatbot** runs locally on port `8000` and can be exposed through Apache at `https://localhost:8445/`.
 
 Expected flow:
 
-1. Open `https://localhost/`
+1. Open `https://localhost:8444/`
 2. Apache serves `html/index.html`
 3. That page contains an iframe pointing to `/omnixas/`
 4. Apache proxies `/omnixas/` to the local XAS app
+5. If enabled, the 4th dashboard column embeds the chatbot from `https://localhost:8445/`
 
 ## Repo structure used by local setup
 
@@ -36,6 +38,7 @@ Important files:
 * `deploy/apache/lightshowai-local.conf.template`
 * `scripts/setup-local-apache.sh`
 * `scripts/run-xas-local.sh`
+* `aws/chatbot/setup.sh`
 * `.env.example`
 * `.env.local` (local only, do not commit)
 
@@ -43,9 +46,9 @@ Important files:
 
 This guide assumes:
 
-* WSL Ubuntu
+* Ubuntu, Debian, or WSL Ubuntu
 * the repo is already cloned locally
-* you are using a Python environment such as conda
+* conda is installed
 
 ## Required environment variables
 
@@ -61,6 +64,13 @@ Set these variables in `.env.local`:
 TILED_URL=...
 TILED_API_KEY=...
 XAS_SANDBOX_URL=...
+FLASK_SECRET_KEY=replace-with-a-random-secret
+```
+
+Optional, if embedding the chatbot in the 4th column:
+
+```dotenv
+OMNIXAS_CHATBOT_URL=https://localhost:8445/
 ```
 
 Do not commit `.env.local`.
@@ -80,6 +90,8 @@ sudo apt install -y apache2 apache2-utils openssl
 sudo a2enmod ssl
 sudo a2enmod proxy
 sudo a2enmod proxy_http
+sudo a2enmod proxy_wstunnel
+sudo a2enmod rewrite
 sudo a2enmod headers
 ```
 
@@ -87,6 +99,7 @@ These modules are needed for:
 
 * HTTPS support
 * reverse proxying `/omnixas/`
+* reverse proxying the chatbot and its websocket endpoint
 * setting response headers such as `X-Frame-Options`
 
 ### 3. Make scripts executable
@@ -100,9 +113,10 @@ chmod +x scripts/setup-local-apache.sh
 
 ### 4. Install project dependencies
 
-Activate your conda environment first:
+Create or activate your conda environment first:
 
 ```bash
+conda create -n LightshowAI python=3.11 -y
 conda activate LightshowAI
 ```
 
@@ -125,9 +139,40 @@ This script:
 * creates local SSL certs
 * creates Apache log folders
 * renders the Apache config with your actual repo path
+* backs up `/etc/apache2/ports.conf` to `/etc/apache2/ports.conf.lightshowai.bak` if needed
+* configures Apache to listen on local development ports `8444` and `8445`
+* exposes the static site and XAS proxy at `https://localhost:8444/`
+* adds a secure chatbot proxy at `https://localhost:8445/`
+* disables the default Apache port-80 site for local development
 * installs the rendered config into Apache
 * enables the site
 * restarts Apache
+
+## Optional: chatbot setup
+
+From the repo root:
+
+```bash
+chmod +x aws/chatbot/setup.sh
+./aws/chatbot/setup.sh
+```
+
+The Linux chatbot setup mirrors the macOS setup: it creates or reuses the
+`LightshowAI` conda environment, installs native/scientific dependencies from
+conda-forge, installs the chatbot requirements, and installs LightshowAI in
+editable mode.
+
+Edit `aws/chatbot/.env` with:
+
+```dotenv
+ANTHROPIC_AUTH_TOKEN=...
+# or ANTHROPIC_API_KEY=...
+MP_API_KEY=...
+AM_SC_API_KEY=...
+CHAINLIT_PASSWORD=...
+ANTHROPIC_MODEL=claude-sonnet-4-6
+PLOTS_PUBLIC_URL=http://localhost:8001
+```
 
 ## Starting the app
 
@@ -140,6 +185,21 @@ conda activate LightshowAI
 
 Keep that terminal open while testing.
 
+To start the chatbot, use a second terminal:
+
+```bash
+conda activate LightshowAI
+cd aws/chatbot
+env -u DEBUG chainlit run app.py -h --host 0.0.0.0 --port 8000
+```
+
+For inline XANES plots from chatbot responses, use a third terminal:
+
+```bash
+conda activate LightshowAI
+python -m http.server 8001 --directory ~/tmp
+```
+
 ## Open in browser
 
 ### Static landing page
@@ -147,7 +207,7 @@ Keep that terminal open while testing.
 Open:
 
 ```text
-https://localhost/
+https://localhost:8444/
 ```
 
 This should load `html/index.html`.
@@ -157,17 +217,26 @@ This should load `html/index.html`.
 Open:
 
 ```text
-https://localhost/omnixas/
+https://localhost:8444/omnixas/
+```
+
+### Chatbot through Apache
+
+Open:
+
+```text
+https://localhost:8445/
 ```
 
 ## Expected behavior
 
 If everything is working:
 
-* `https://localhost/` loads the landing page
+* `https://localhost:8444/` loads the landing page
 * the page contains an iframe
 * the iframe loads `/omnixas/`
 * Apache forwards `/omnixas/` to the local XAS app
+* `https://localhost:8445/` loads the Chainlit chatbot when it is running on port `8000`
 
 The iframe in `html/index.html` should look like:
 
@@ -185,11 +254,15 @@ sudo apt install -y apache2 apache2-utils openssl
 sudo a2enmod ssl
 sudo a2enmod proxy
 sudo a2enmod proxy_http
+sudo a2enmod proxy_wstunnel
+sudo a2enmod rewrite
 sudo a2enmod headers
 
 chmod +x scripts/run-xas-local.sh
 chmod +x scripts/setup-local-apache.sh
+chmod +x aws/chatbot/setup.sh
 
+conda create -n LightshowAI python=3.11 -y
 conda activate LightshowAI
 pip install -e .
 
@@ -197,6 +270,7 @@ cp .env.example .env.local
 # edit .env.local with real values
 
 ./scripts/setup-local-apache.sh
+./aws/chatbot/setup.sh
 ```
 
 ### Each development session
@@ -206,10 +280,19 @@ conda activate LightshowAI
 ./scripts/run-xas-local.sh
 ```
 
+Optional chatbot:
+
+```bash
+conda activate LightshowAI
+cd aws/chatbot
+env -u DEBUG chainlit run app.py -h --host 0.0.0.0 --port 8000
+```
+
 Then open:
 
-* `https://localhost/`
-* `https://localhost/omnixas/`
+* `https://localhost:8444/`
+* `https://localhost:8444/omnixas/`
+* `https://localhost:8445/`
 
 ## Troubleshooting
 
@@ -268,15 +351,17 @@ tail -n 50 .local/logs/apache2/error.log
 Check URLs:
 
 ```bash
-curl -k -I https://localhost/
-curl -k -I https://localhost/omnixas/
+curl -k -I https://localhost:8444/
+curl -k -I https://localhost:8444/omnixas/
+curl -k -I https://localhost:8445/
 ```
 
 ## Notes
 
 * The self-signed SSL certificate may trigger a browser warning. That is expected for local development.
 * If the landing page loads but the iframe is blank, the issue is usually with the local app or the `/omnixas/` proxy target.
-* If both `/` and `/omnixas/` fail with `Forbidden`, the issue is usually directory permissions.
+* If the chatbot column is blank, confirm Chainlit is running on port `8000`, `OMNIXAS_CHATBOT_URL=https://localhost:8445/` is set, and Apache has `proxy_wstunnel` plus `rewrite` enabled.
+* If `https://localhost:8444/`, `/omnixas/`, and `https://localhost:8445/` fail with `Forbidden`, the issue is usually directory permissions.
 
 ## Summary
 
@@ -287,7 +372,9 @@ For local testing:
 3. install Python dependencies
 4. create `.env.local`
 5. run `./scripts/setup-local-apache.sh`
-6. run `./scripts/run-xas-local.sh`
-7. open `https://localhost/`
+6. optionally run `./aws/chatbot/setup.sh`
+7. run `./scripts/run-xas-local.sh`
+8. optionally run Chainlit on port `8000`
+9. open `https://localhost:8444/`
 
 This gives you a local version of the site where Apache serves the landing page and proxies the iframe app through `/omnixas/`.

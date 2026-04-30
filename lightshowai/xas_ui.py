@@ -73,7 +73,7 @@ from lightshowai.auth import init_auth, get_current_user
 TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.environ["TILED_API_KEY"]
 XAS_SANDBOX_URL = os.environ["XAS_SANDBOX_URL"]
-CHATBOT_URL = os.getenv("OMNIXAS_CHATBOT_URL", "http://localhost:8445")
+CHATBOT_URL = os.getenv("OMNIXAS_CHATBOT_URL", "https://localhost:8445")
 
 if not TILED_URL:
     raise RuntimeError("TILED_URL is not set")
