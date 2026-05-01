@@ -74,6 +74,10 @@ TILED_URL = os.getenv("TILED_URL")
 TILED_API_KEY = os.environ["TILED_API_KEY"]
 XAS_SANDBOX_URL = os.environ["XAS_SANDBOX_URL"]
 CHATBOT_URL = os.getenv("OMNIXAS_CHATBOT_URL", "https://localhost:8445")
+CHATBOT_PLOT_ROOT = pathlib.Path(
+    os.getenv("CHATBOT_PLOT_ROOT", str(pathlib.Path.home() / "tmp"))
+).expanduser()
+CHATBOT_SRCDOC_MAX_BYTES = int(os.getenv("CHATBOT_SRCDOC_MAX_BYTES", "1500000"))
 
 if not TILED_URL:
     raise RuntimeError("TILED_URL is not set")
@@ -300,6 +304,35 @@ xas_plot = dcc.Graph(
 st_source = html.Div(id='st_source', children='No structure loaded yet',
                      style={'fontSize': '13px', 'color': '#555', 'fontWeight': '500', 'fontFamily': base_font})
 
+chatbot_structure_iframe = html.Iframe(
+    id="chatbot_structure_iframe",
+    srcDoc="",
+    style={
+        "display": "none",
+        "width": "100%",
+        "height": "680px",
+        "border": "1px solid #e5e5e5",
+        "borderRadius": "6px",
+        "backgroundColor": "#fff",
+        "marginTop": "10px",
+    },
+    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads",
+)
+
+chatbot_structure_hint = html.Div(
+    id="chatbot_structure_hint",
+    children="",
+    style={"fontSize": "11px", "color": "#666", "marginTop": "8px"},
+)
+
+chatbot_structure_poll_interval = dcc.Interval(
+    id="chatbot_structure_poll_interval",
+    interval=2500,
+    n_intervals=0,
+)
+
+chatbot_structure_meta_store = dcc.Store(id="chatbot_structure_meta_store", data=None)
+
 all_elements = ['Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu']
 ene_start = {'Ti': 4964.504, 'V': 5464.097, 'Cr': 5989.168, 'Mn': 6537.886,
              'Fe': 7111.23, 'Co': 7709.282, 'Ni': 8332.181, 'Cu': 8983.173}
@@ -402,6 +435,55 @@ def get_current_structure_label(st_data, structure_source=None):
         return structure_source
 
     return None
+
+
+def _chatbot_turn_roots() -> list[pathlib.Path]:
+    """Candidate roots where chatbot turn artifacts may be written."""
+    roots = [
+        CHATBOT_PLOT_ROOT / "turns",
+        pathlib.Path("/tmp/lightshowai_plots/turns"),
+    ]
+    out = []
+    seen = set()
+    for root in roots:
+        key = str(root.resolve()) if root.exists() else str(root)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(root)
+    return out
+
+
+def _latest_chatbot_structure_file() -> pathlib.Path | None:
+    """Return the most recently updated chatbot-generated structure HTML file."""
+    latest_path = None
+    latest_mtime = -1.0
+    for root in _chatbot_turn_roots():
+        if not root.exists():
+            continue
+        for path in root.rglob("*_structure.html"):
+            try:
+                if not path.is_file():
+                    continue
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest_path = path
+    return latest_path
+
+
+def _read_chatbot_structure_srcdoc(path: pathlib.Path) -> str | None:
+    """Read structure HTML into srcDoc payload for same-page embedding."""
+    try:
+        size = path.stat().st_size
+        if size <= 0 or size > CHATBOT_SRCDOC_MAX_BYTES:
+            return None
+        return path.read_text(encoding="utf-8")
+    except Exception as exc:
+        print(f"Could not read chatbot structure HTML {path}: {exc}")
+        return None
 
 def update_tiled_lightshowai_metadata(exp_data, metadata):
     """
@@ -909,6 +991,8 @@ def _load_pending_entry(entry):
 
 onmixas_layout = html.Div([
     tiled_poll_interval,
+    chatbot_structure_poll_interval,
+    chatbot_structure_meta_store,
     # tiled_live_store,
     pending_spectra_store,
     last_load_source_store,
@@ -1144,8 +1228,11 @@ onmixas_layout = html.Div([
                     html.Div("Crystal Structure Viewer", style=column_header_style),
                     html.Div(
                         Loading(struct_component.layout(size="100%")),
-                        style={'minHeight': '200px', 'width': '100%', 'position': 'relative'}
-                    )
+                        id="structure_component_wrapper",
+                        style={'minHeight': '200px', 'width': '100%', 'position': 'relative', 'display': 'block'}
+                    ),
+                    chatbot_structure_iframe,
+                    chatbot_structure_hint,
                 ], style=card_style),
 
                 # XAS Model Prediction Card
@@ -1664,6 +1751,97 @@ def toggle_upload_metadata_button_visibility(_):
         return {"display": "none"}
 
     return {"display": "block"}
+
+
+@app.callback(
+    Output("chatbot_structure_meta_store", "data"),
+    Input("chatbot_structure_poll_interval", "n_intervals"),
+    State("chatbot_structure_meta_store", "data"),
+)
+def poll_latest_chatbot_structure(_n_intervals, current_meta):
+    # First tick on a fresh page: capture a per-session start time and keep empty.
+    if current_meta is None:
+        return {
+            "session_started_at": datetime.now().timestamp(),
+            "key": None,
+            "srcdoc": "",
+        }
+
+    session_started_at = current_meta.get("session_started_at")
+    if session_started_at is None:
+        session_started_at = datetime.now().timestamp()
+
+    latest = _latest_chatbot_structure_file()
+    if latest is None:
+        if current_meta.get("key") is None and not current_meta.get("srcdoc"):
+            raise PreventUpdate
+        return {
+            "session_started_at": session_started_at,
+            "key": None,
+            "srcdoc": "",
+        }
+
+    try:
+        stat = latest.stat()
+    except OSError:
+        raise PreventUpdate
+
+    # Ignore artifacts older than this UI session so reload starts empty.
+    if stat.st_mtime < float(session_started_at):
+        if current_meta.get("key") is None and not current_meta.get("srcdoc"):
+            raise PreventUpdate
+        return {
+            "session_started_at": session_started_at,
+            "key": None,
+            "srcdoc": "",
+        }
+
+    key = f"{latest.resolve()}::{stat.st_mtime_ns}::{stat.st_size}"
+    if current_meta and current_meta.get("key") == key:
+        raise PreventUpdate
+
+    srcdoc = _read_chatbot_structure_srcdoc(latest)
+    if not srcdoc:
+        raise PreventUpdate
+
+    return {
+        "session_started_at": session_started_at,
+        "key": key,
+        "file": latest.name,
+        "updated": datetime.fromtimestamp(stat.st_mtime).strftime("%H:%M:%S"),
+        "srcdoc": srcdoc,
+    }
+
+
+@app.callback(
+    Output("chatbot_structure_iframe", "srcDoc"),
+    Output("chatbot_structure_iframe", "style"),
+    Output("structure_component_wrapper", "style"),
+    Output("chatbot_structure_hint", "children"),
+    Input("chatbot_structure_meta_store", "data"),
+)
+def render_chatbot_structure_preview(meta):
+    hidden_style = {
+        "display": "none",
+        "width": "100%",
+        "height": "680px",
+        "border": "1px solid #e5e5e5",
+        "borderRadius": "6px",
+        "backgroundColor": "#fff",
+        "marginTop": "10px",
+    }
+    visible_style = {
+        **hidden_style,
+        "display": "block",
+    }
+    structure_visible = {'minHeight': '200px', 'width': '100%', 'position': 'relative', 'display': 'block'}
+    structure_hidden = {'minHeight': '200px', 'width': '100%', 'position': 'relative', 'display': 'none'}
+
+    if not meta or not meta.get("srcdoc"):
+        return "", hidden_style, structure_visible, ""
+
+    label = f"Chatbot preview: {meta.get('file', 'structure.html')} (updated {meta.get('updated', '--:--:--')})"
+    return meta["srcdoc"], visible_style, structure_hidden, label
 
 
 @app.callback(

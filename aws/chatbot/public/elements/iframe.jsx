@@ -4,10 +4,11 @@
 export default function Iframe() {
   const currentProps = typeof props === "undefined" ? {} : props;
   const src = typeof currentProps.src === "string" ? currentProps.src : "";
+  const srcDoc = typeof currentProps.srcDoc === "string" ? currentProps.srcDoc : "";
   const height = Number(currentProps.height) || 520;
   const title = currentProps.title || "HTML preview";
 
-  if (!src) {
+  if (!src && !srcDoc) {
     return (
       <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
         HTML source is unavailable.
@@ -18,7 +19,8 @@ export default function Iframe() {
   return (
     <div style={{ width: "100%", marginTop: 8 }}>
       <iframe
-        src={src}
+        src={src || undefined}
+        srcDoc={srcDoc || undefined}
         title={title}
         style={{
           width: "100%",

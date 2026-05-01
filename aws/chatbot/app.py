@@ -68,6 +68,7 @@ _MISSING = object()
 PLOTS_PUBLIC_URL = os.environ.get(
     "PLOTS_PUBLIC_URL", "http://localhost:8001"
 ).rstrip("/")
+MAX_IFRAME_SRCDOC_BYTES = int(os.environ.get("MAX_IFRAME_SRCDOC_BYTES", "1500000"))
 
 MP_API_KEY = os.environ.get("MP_API_KEY", "")
 SHARED_PASSWORD = os.environ.get("CHAINLIT_PASSWORD", "")
@@ -319,6 +320,33 @@ def _iframe_height(path: Path) -> int:
     return 680 if "structure" in path.name else 540
 
 
+def _iframe_srcdoc(path: Path, url: str) -> str | None:
+    """Read HTML for inline srcDoc embedding (avoids mixed-content iframe issues)."""
+    try:
+        if not path.is_file():
+            return None
+        size = path.stat().st_size
+        if size <= 0 or size > MAX_IFRAME_SRCDOC_BYTES:
+            return None
+        html = path.read_text(encoding="utf-8")
+        base_href = url.rsplit("/", 1)[0] + "/"
+        base_tag = f'<base href="{base_href}">'
+        if "<head" in html.lower():
+            html = re.sub(
+                r"(<head[^>]*>)",
+                r"\1" + base_tag,
+                html,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        else:
+            html = f"<head>{base_tag}</head>" + html
+        return html
+    except Exception as exc:
+        sys.stderr.write(f"[chatbot] failed to read HTML for srcDoc {path}: {exc}\n")
+        return None
+
+
 async def _send_inline_html(path: Path) -> None:
     """Render a saved HTML file with the Chainlit iframe custom element."""
     url = _html_url(path)
@@ -326,6 +354,7 @@ async def _send_inline_html(path: Path) -> None:
     label = _html_label(path)
     elements = []
     custom_element = getattr(cl, "CustomElement", None)
+    srcdoc = _iframe_srcdoc(path, url)
     if custom_element is not None:
         elements.append(
             custom_element(
@@ -333,6 +362,7 @@ async def _send_inline_html(path: Path) -> None:
                 display="inline",
                 props={
                     "src": url,
+                    "srcDoc": srcdoc,
                     "height": _iframe_height(path),
                     "title": f"{label}: {path.name}",
                 },
