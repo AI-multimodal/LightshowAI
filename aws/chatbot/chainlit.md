@@ -12,7 +12,7 @@ Powered by:
 - Search Materials Project for crystal structures by formula, chemical system, or oxidation state
 - Render rotatable 3D crystal viewers inline in the chat
 - Predict K-edge XANES (FEFF for Co, Cr, Cu, Fe, Mn, Ni, Ti, V; VASP for Ti and Cu)
-- Compare predicted spectra across multiple polymorphs with shift-optimized Pearson, Spearman, and Cos(∂) metrics
+- Compare predicted spectra across multiple polymorphs with shift-optimized Pearson, Spearman, Wasser and Cos(∂) metrics
 - Save plots and structure HTML to `~/tmp/` for inline display
 
 ## Try it

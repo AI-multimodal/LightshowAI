@@ -2707,6 +2707,20 @@ def apply_column_selection(
 
         print(f"=== DEBUG: Plot ready. Output contains {len(x_data)} items. ===")
 
+        # Write shared file so the chatbot can attach this spectrum via its + button.
+        try:
+            shared_dat = CHATBOT_PLOT_ROOT / "current_experimental.dat"
+            lines = [
+                f"# Experimental XANES spectrum: {display_name}",
+                f"# Source: {filename}",
+                f"# {x_label}  {y_label}",
+            ]
+            for e, a in zip(x_data.tolist(), y_data.tolist()):
+                lines.append(f"{e}  {a}")
+            shared_dat.write_text("\n".join(lines) + "\n")
+        except Exception as _write_err:
+            print(f"[xas_ui] failed to write shared experimental dat: {_write_err}")
+
         return result, html.Span(info_text, style={'color': 'green'})
 
     except Exception as e:
@@ -2842,6 +2856,12 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
                     "comparison_range": None
                 }
 
+            st_dict = st.as_dict()
+            st_dict["xas"] = specs
+            st_dict["label"] = mpid
+            st_dict["material_id"] = mpid
+            st_dict["structure_id"] = mpid
+
             old_entry = next((s for s in existing_scores if s["structure_id"] == mpid), None)
             was_selected = old_entry.get("selected", False) if old_entry else False
 
@@ -2856,17 +2876,12 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
                 "spectrum": predicted_spectrum.tolist(),
                 "energy": energy,
                 "element": element,
-                "selected": was_selected
+                "selected": was_selected,
+                "st_data": st_dict,
             })
 
             if match_result["comparison_range"] is not None:
                 comparison_range = match_result["comparison_range"]
-
-            st_dict = st.as_dict()
-            st_dict["xas"] = specs
-            st_dict["label"] = mpid
-            st_dict["material_id"] = mpid
-            st_dict["structure_id"] = mpid
 
             last_st_dict = st_dict
             last_mpid = mpid
@@ -3084,6 +3099,13 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                     'comparison_range': None
                 }
 
+            # Build the structure dict first so it can be stored in the score entry.
+            st_dict = st.as_dict()
+            st_dict["xas"] = specs
+            st_dict["label"] = pathlib.Path(filename).stem
+            st_dict["filename"] = filename
+            st_dict["structure_id"] = structure_id
+
             # Check if this structure already exists - preserve selection state
             old_entry = next((s for s in existing_scores if s['structure_id'] == structure_id), None)
             was_selected = old_entry.get('selected', False) if old_entry else False
@@ -3101,19 +3123,13 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
                 'spectrum': predicted_spectrum.tolist(),
                 'energy': energy,
                 'element': element,
-                'selected': was_selected
+                'selected': was_selected,
+                'st_data': st_dict,
             })
 
             # Keep track of comparison range from last successful processing
             if match_result['comparison_range'] is not None:
                 comparison_range = match_result['comparison_range']
-
-            # Store last structure for display
-            st_dict = st.as_dict()
-            st_dict["xas"] = specs
-            st_dict["label"] = pathlib.Path(filename).stem
-            st_dict["filename"] = filename
-            st_dict["structure_id"] = structure_id
 
             last_st_dict = st_dict
             last_filename = filename
@@ -3569,13 +3585,59 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         'spectrum': predicted_spectrum.tolist(),
         'energy': energy,
         'element': element,
-        'selected': was_selected
+        'selected': was_selected,
+        'st_data': st_data,
     })
 
     updated_scores = mark_active_structure_selected(updated_scores, structure_id)
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
 
     return updated_scores, build_scores_table(updated_scores, sort_metric), match_result['comparison_range']
+
+
+@app.callback(
+    Output(struct_component.id(), 'data', allow_duplicate=True),
+    Output('st_source', 'children', allow_duplicate=True),
+    Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
+    State('structure_scores_store', 'data'),
+    prevent_initial_call=True,
+)
+def display_latest_checked_structure(checkbox_values, scores):
+    """Show the crystal structure of the most recently checked row in the scores table."""
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+
+    trigger_prop = ctx.triggered[0]['prop_id']
+    if 'spectrum-checkbox' not in trigger_prop:
+        raise PreventUpdate
+
+    triggered_value = ctx.triggered[0]['value']
+    print(f"[checkbox] trigger={trigger_prop!r}  value={triggered_value!r}")
+
+    # Only act when a box is being checked, not unchecked.
+    if not triggered_value:
+        raise PreventUpdate
+
+    try:
+        id_dict = json.loads(trigger_prop.rsplit('.', 1)[0])
+        rank = id_dict['index']
+    except Exception as exc:
+        print(f"[checkbox] could not parse rank: {exc}")
+        raise PreventUpdate
+
+    if not scores or rank >= len(scores):
+        print(f"[checkbox] rank={rank} out of range (scores len={len(scores) if scores else 0})")
+        raise PreventUpdate
+
+    entry = scores[rank]
+    st_data = entry.get('st_data')
+    print(f"[checkbox] rank={rank} structure_id={entry.get('structure_id')}  has_st_data={st_data is not None}")
+    if st_data is None:
+        raise PreventUpdate
+
+    return st_data, f"Current structure: {entry['structure_id']}"
+
 
 def build_matching_metadata(exp_data, scores, top_n=3):
     """

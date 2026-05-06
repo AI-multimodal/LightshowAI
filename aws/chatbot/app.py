@@ -60,6 +60,7 @@ PLOT_DIR = Path.home() / "tmp"
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR = PLOT_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+SHARED_EXP_DAT = PLOT_DIR / "current_experimental.dat"
 _MISSING = object()
 
 # Public hostname/IP the BROWSER reaches the static server at. The chatbot
@@ -533,7 +534,10 @@ def _persist_message_uploads(message: cl.Message, session_id: str) -> list[dict[
 
 
 def _build_agent_prompt(
-    user_text: str, uploads: list[dict[str, str]], turn_output_dir: Path
+    user_text: str,
+    uploads: list[dict[str, str]],
+    turn_output_dir: Path,
+    experimental_data_path: str | None = None,
 ) -> str:
     """Append uploaded file paths to the prompt sent to the Claude agent."""
     context_lines = [
@@ -545,31 +549,46 @@ def _build_agent_prompt(
         "explicitly asks for them.",
     ]
 
-    if not uploads:
+    upload_lines: list[str] = []
+
+    if experimental_data_path:
+        exp_path = Path(experimental_data_path)
+        upload_lines += [
+            "",
+            "The user has attached the experimental XANES spectrum currently loaded "
+            "in the dashboard. It is available at the following stable local path:",
+            f"- {exp_path.name}: {experimental_data_path} "
+            f"(directory: {exp_path.parent}, mime: text/plain)",
+            f"For experimental XANES .dat standards, use this directory directly: "
+            f"{exp_path.parent}. Do not ask the user to provide a path for this file.",
+        ]
+
+    if uploads:
+        upload_lines += [
+            "",
+            "The user uploaded files with this message. The Chainlit app copied them "
+            "to these stable local paths readable by your tools and Python scripts:",
+        ]
+        for upload in uploads:
+            upload_lines.append(
+                "- "
+                f"{upload['name']}: {upload['path']} "
+                f"(directory: {upload['directory']}, mime: {upload['mime']}, "
+                f"size: {upload['size_bytes']} bytes)"
+            )
+
+        dat_dirs = sorted(
+            {u["directory"] for u in uploads if u["path"].lower().endswith(".dat")}
+        )
+        if dat_dirs:
+            upload_lines.append(
+                "For experimental XANES .dat standards, use these directories directly: "
+                + ", ".join(dat_dirs)
+                + ". Do not ask the user to provide a path for these uploaded files."
+            )
+
+    if not upload_lines:
         return "\n".join(context_lines) + "\n\nUser message:\n" + user_text
-
-    upload_lines = [
-        "",
-        "The user uploaded files with this message. The Chainlit app copied them "
-        "to these stable local paths readable by your tools and Python scripts:",
-    ]
-    for upload in uploads:
-        upload_lines.append(
-            "- "
-            f"{upload['name']}: {upload['path']} "
-            f"(directory: {upload['directory']}, mime: {upload['mime']}, "
-            f"size: {upload['size_bytes']} bytes)"
-        )
-
-    dat_dirs = sorted(
-        {u["directory"] for u in uploads if u["path"].lower().endswith(".dat")}
-    )
-    if dat_dirs:
-        upload_lines.append(
-            "For experimental XANES .dat standards, use these directories directly: "
-            + ", ".join(dat_dirs)
-            + ". Do not ask the user to provide a path for these uploaded files."
-        )
 
     return "\n".join(context_lines + upload_lines) + "\n\nUser message:\n" + user_text
 
@@ -592,12 +611,21 @@ async def on_chat_start() -> None:
     cl.user_session.set("steps", {})  # tool_use_id -> cl.Step
     cl.user_session.set("rendered_html_paths", set())
 
+    actions = [
+        cl.Action(
+            name="attach_experimental_data",
+            label="+ Add experimental data",
+            tooltip="Attach the experimental spectrum currently loaded in the XANES dashboard",
+            payload={},
+        )
+    ]
     await cl.Message(
         content=(
             f"**LightshowAI XANES chatbot** — model `{MODEL}`\n\n"
             "Try: *Show the structure of mp-2657 and predict its Ti K-edge XANES "
             "with FEFF.*"
-        )
+        ),
+        actions=actions,
     ).send()
 
 
@@ -610,6 +638,28 @@ async def on_chat_end() -> None:
         except Exception as exc:
             if not _is_sigterm_exit(exc):
                 sys.stderr.write(f"[chatbot] client shutdown failed: {exc}\n")
+
+
+@cl.action_callback("attach_experimental_data")
+async def on_attach_experimental_data(action: cl.Action) -> None:
+    if not SHARED_EXP_DAT.exists():
+        await cl.Message(
+            content="No experimental data found. Load a spectrum in the XANES dashboard first, then click Apply & Plot."
+        ).send()
+        return
+
+    cl.user_session.set("experimental_data_path", str(SHARED_EXP_DAT))
+
+    # Read the header comment to surface the material name back to the user.
+    try:
+        first_line = SHARED_EXP_DAT.read_text().splitlines()[0]
+        label = first_line.lstrip("# ").strip()
+    except Exception:
+        label = SHARED_EXP_DAT.name
+
+    await cl.Message(
+        content=f"Experimental spectrum attached: **{label}**\n\nYou can now ask questions like *\"Find the best matching structure for this spectrum.\"*"
+    ).send()
 
 
 # --- MLflow run helpers -----------------------------------------------------
@@ -1195,7 +1245,10 @@ async def on_message(message: cl.Message) -> None:
     session_id = cl.user_session.get("id") or "unknown"
     turn_output_dir = _new_turn_output_dir(session_id)
     uploads = _persist_message_uploads(message, session_id)
-    agent_prompt = _build_agent_prompt(message.content, uploads, turn_output_dir)
+    experimental_data_path: str | None = cl.user_session.get("experimental_data_path")
+    agent_prompt = _build_agent_prompt(
+        message.content, uploads, turn_output_dir, experimental_data_path
+    )
 
     run = _mlflow_start_turn(agent_prompt, user_id, session_id)
     t0 = time.monotonic()
@@ -1275,6 +1328,14 @@ async def on_message(message: cl.Message) -> None:
                             current_reply = cl.Message(content="")
                             await current_reply.send()
 
+            current_reply.actions = [
+                cl.Action(
+                    name="attach_experimental_data",
+                    label="+ Add experimental data",
+                    tooltip="Attach the experimental spectrum currently loaded in the XANES dashboard",
+                    payload={},
+                )
+            ]
             await current_reply.update()
             artifacts.extend(
                 await _render_recent_html_files(turn_started_at, turn_output_dir)

@@ -8,7 +8,7 @@ user-invocable: true
 Run an end-to-end Ti K-edge XANES benchmarking workflow:
 1. Retrieve candidate structures from the Materials Project
 2. Predict spectra with LightshowAI (VASP or FEFF model)
-3. Compare to experimental `.dat` standards using shift-optimized Pearson r, Spearman ρ, Cos(∂), Cosine, and Kendall τ
+3. Compare to experimental `.dat` standards using shift-optimized Pearson r, Spearman ρ, Cos(∂), Cosine, Kendall τ, and  Wasser
 4. Rank structures per experimental standard and generate an interactive comparison figure
 
 ## Arguments
@@ -112,6 +112,7 @@ For each (structure, experimental standard) pair:
    - **Kendall τ** — concordance of rank pairs
    - **Cosine similarity** — dot product of normalized vectors
    - **Cos(∂)** — cosine similarity of first derivative (sensitive to peak positions and slopes)
+   - **Wasser** - 
 
 ```python
 from scipy.stats import pearsonr, spearmanr, kendalltau
