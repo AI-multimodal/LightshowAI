@@ -4,8 +4,7 @@
 <head>
 	<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 	<title>LightshowAI</title>
-	<link rel="stylesheet" media="all"
-		href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,500,700" />
+	<link rel="stylesheet" media="all" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,500,700" />
 	<link rel="stylesheet" type="text/css" media="all" href="assets/fontawesome-6/css/all.min.css" />
 	<link rel="stylesheet" type="text/css" media="all" href="assets/fontawesome-5/css/all.min.css" />
 	<link rel="stylesheet" type="text/css" media="all" href="assets/icons/css/font-awesome.min.css" />
@@ -17,6 +16,48 @@
 	<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 	<link rel="manifest" href="site.webmanifest">
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<style>
+	@media (max-width: 768px) {
+	/* Tabs nav: horizontal scroll on mobile. */
+	.tabs ul.ui-tabs-nav {
+		display: flex !important;
+		flex-wrap: nowrap !important;
+		overflow-x: auto !important;
+		justify-content: flex-start !important;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+		padding-bottom: 5px;
+	}
+
+	.tabs ul.ui-tabs-nav::-webkit-scrollbar {
+		display: none;
+	}
+
+	.tabs ul.ui-tabs-nav > li {
+		flex: none !important;
+		margin-bottom: 0 !important;
+	}
+
+	#visitor-counter {
+		background: #fff !important;
+		margin-top: -8px !important;
+		padding: 4px 0 8px !important;
+		font-size: 14px !important;
+		color: #555 !important;
+		text-align: center;
+		border-bottom: 0 !important;
+	}
+
+	#visitor-counter .fa-eye {
+		font-size: 14px !important;
+		color: #005a9c;
+	}
+
+	#topOfPage {
+		display: none !important;
+	}
+	}
+	</style>
 </head>
 
 <body>
@@ -185,8 +226,7 @@
 						</p>
 
 						<h2>Funding acknowledgment</h2>
-						<p style="font-size: 1.1em; line-height: 1.6;">This research is based upon work supported by the U.S. Department of Energy, Office of
-							Science, Office Basic Energy Sciences, under Award Number FWP PS-030. This research used the
+						<p style="font-size: 1.1em; line-height: 1.6;">This material is based upon work supported by the U.S. Department of Energy, Office of Science, Office Basic Energy Sciences, under Award Number FWP PS-030, and Office of the Advanced Scientific Computing Research, for the Genesis Mission American Science Cloud project, under Contract No. DE-SC0012704. This research used the
 							Theory and Computation resources of the Center for Functional Nanomaterials (CFN), which is
 							a U.S. Department of Energy Office of Science User Facility, at Brookhaven National
 							Laboratory under Contract No. DE-SC0012704. The Software resulted from work developed under
