@@ -168,6 +168,67 @@ with sync_playwright() as p:
     browser.close()
 ```
 
+## Step 7.5: Save `matching_scores.json` for the main LightshowAI dashboard
+
+After computing all metrics and generating the comparison figure, save the results as
+`matching_scores.json` in the output directory. The main LightshowAI Dash UI automatically
+polls for this file and populates the "Structure Matching Scores" table and XANES comparison
+plot — so **this step is required** for the two-pane workflow to work.
+
+Build one entry per predicted structure with its best-shift metrics vs. the primary
+experimental standard, then write the file:
+
+```python
+import json as _json
+
+# Build a list of score dicts — one per successfully predicted structure.
+# Adapt the variable names below to match whatever you used in Steps 4–5
+# (e.g. predictions, best_shift, pearson_r, etc.).
+_dashboard_scores = []
+for _mpid in predicted_mpids:           # list of MP IDs with successful predictions
+    _pred_x, _pred_y = predictions[_mpid]   # (energy_array, spectrum_array) from Step 4
+    _r = metrics_by_mpid[_mpid]             # best-shift metrics dict from Step 5
+
+    # Derive the comparison energy range from the common grid used for metrics.
+    _comp_range = None
+    if _r.get("e_lo") is not None and _r.get("e_hi") is not None:
+        _comp_range = [float(_r["e_lo"]), float(_r["e_hi"])]
+
+    _dashboard_scores.append({
+        "structure_id": _mpid,
+        "score":  float(_r.get("coss_deriv") or 0),
+        "shift":  float(_r.get("shift") or 0),
+        "correlations": {
+            "pearson":     float(_r.get("pearson",    0) or 0),
+            "spearman":    float(_r.get("spearman",   0) or 0),
+            "coss":        float(_r.get("cosine",     0) or 0),  # cosine similarity
+            "coss_deriv":  float(_r.get("coss_deriv", 0) or 0),  # Cos(∂)
+            "kendalltaub": float(_r.get("kendall",    0) or 0),
+        },
+        "spectrum": _pred_y.tolist() if hasattr(_pred_y, "tolist") else list(_pred_y),
+        "energy":   _pred_x.tolist() if hasattr(_pred_x, "tolist") else list(_pred_x),
+        "element":  absorbing_element,
+        "selected": True,          # mark all selected so dashboard shows all spectra
+        "comparison_range": _comp_range,
+    })
+
+# Sort by Cos(∂) descending so the top match appears first in the table.
+_dashboard_scores.sort(key=lambda s: s["score"], reverse=True)
+
+_scores_path = Path(output_dir) / "matching_scores.json"
+_scores_path.write_text(_json.dumps(_dashboard_scores))
+print(f"Saved matching_scores.json → {_scores_path}")
+```
+
+**Variable name notes** (adapt as needed):
+- `predicted_mpids` — the list of MP IDs for which `plot_xanes` succeeded
+- `predictions[mpid]` — `(energy_array, spectrum_array)` extracted in Step 4
+- `metrics_by_mpid[mpid]` — dict with keys `shift`, `pearson`, `spearman`, `cosine`,
+  `coss_deriv`, `kendall`, `e_lo`, `e_hi` produced in Step 5
+- `absorbing_element` — the absorbing element string (e.g. `"Ti"`)
+- Metric key names **must** be `coss_deriv`, `coss`, `kendalltaub` (not `cosine`, `kendall`) —
+  these are the internal keys used by the dashboard's scoring table
+
 ## Step 8: Summary
 
 Print a summary table:
@@ -202,3 +263,4 @@ After running, report the paths to:
 - `<output_dir>/comparison_per_standard.html` — interactive comparison figure
 - `<output_dir>/figure_per_standard.png` — static PNG screenshot
 - `<output_dir>/compare_xanes.py` — the analysis script (save for reproducibility)
+- `<output_dir>/matching_scores.json` — comparison scores for the main LightshowAI dashboard (auto-loaded into Structure Matching Scores table)

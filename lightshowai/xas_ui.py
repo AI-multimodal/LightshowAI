@@ -454,6 +454,28 @@ def _chatbot_turn_roots() -> list[pathlib.Path]:
     return out
 
 
+def _latest_chatbot_scores_file(session_started_at: float | None = None) -> pathlib.Path | None:
+    """Return the most recently updated chatbot-generated matching_scores.json."""
+    latest_path = None
+    latest_mtime = -1.0
+    for root in _chatbot_turn_roots():
+        if not root.exists():
+            continue
+        for path in root.rglob("matching_scores.json"):
+            try:
+                if not path.is_file():
+                    continue
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if session_started_at is not None and mtime < float(session_started_at):
+                continue
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest_path = path
+    return latest_path
+
+
 def _latest_chatbot_structure_file() -> pathlib.Path | None:
     """Return the most recently updated chatbot-generated structure HTML file."""
     latest_path = None
@@ -484,6 +506,25 @@ def _read_chatbot_structure_srcdoc(path: pathlib.Path) -> str | None:
     except Exception as exc:
         print(f"Could not read chatbot structure HTML {path}: {exc}")
         return None
+
+
+def _extract_mpid_from_chatbot_meta(meta: dict | None) -> str | None:
+    """Extract an MP ID from chatbot structure metadata/path fields."""
+    if not isinstance(meta, dict):
+        return None
+
+    candidates = [
+        str(meta.get("file") or ""),
+        str(meta.get("key") or ""),
+        str(meta.get("srcdoc") or "")[:2000],
+    ]
+
+    for text in candidates:
+        match = re.search(r"mp-\d+", text, flags=re.IGNORECASE)
+        if match:
+            return match.group(0).lower()
+
+    return None
 
 def update_tiled_lightshowai_metadata(exp_data, metadata):
     """
@@ -867,7 +908,7 @@ def parse_mpid_list(value):
     else:
         text = str(value)
 
-    mpids = re.findall(r"mp-\d+", text)
+    mpids = [m.lower() for m in re.findall(r"mp-\d+", text, flags=re.IGNORECASE)]
 
     # de-duplicate while preserving order
     seen = set()
@@ -1765,51 +1806,65 @@ def poll_latest_chatbot_structure(_n_intervals, current_meta):
             "session_started_at": datetime.now().timestamp(),
             "key": None,
             "srcdoc": "",
+            "scores_key": None,
+            "scores_file": None,
         }
 
     session_started_at = current_meta.get("session_started_at")
     if session_started_at is None:
         session_started_at = datetime.now().timestamp()
 
+    # --- Structure HTML (unchanged logic) ---
+    struct_key = current_meta.get("key")
+    srcdoc = current_meta.get("srcdoc", "")
+    file_name = current_meta.get("file")
+    updated = current_meta.get("updated")
+
     latest = _latest_chatbot_structure_file()
-    if latest is None:
-        if current_meta.get("key") is None and not current_meta.get("srcdoc"):
-            raise PreventUpdate
-        return {
-            "session_started_at": session_started_at,
-            "key": None,
-            "srcdoc": "",
-        }
+    if latest is not None:
+        try:
+            stat = latest.stat()
+            if stat.st_mtime >= float(session_started_at):
+                new_struct_key = f"{latest.resolve()}::{stat.st_mtime_ns}::{stat.st_size}"
+                if new_struct_key != struct_key:
+                    new_srcdoc = _read_chatbot_structure_srcdoc(latest)
+                    if new_srcdoc:
+                        struct_key = new_struct_key
+                        srcdoc = new_srcdoc
+                        file_name = latest.name
+                        updated = datetime.fromtimestamp(stat.st_mtime).strftime("%H:%M:%S")
+        except OSError:
+            pass
 
-    try:
-        stat = latest.stat()
-    except OSError:
-        raise PreventUpdate
+    # --- Scores JSON: search all turn dirs independently ---
+    scores_key = current_meta.get("scores_key")
+    scores_file = current_meta.get("scores_file")
 
-    # Ignore artifacts older than this UI session so reload starts empty.
-    if stat.st_mtime < float(session_started_at):
-        if current_meta.get("key") is None and not current_meta.get("srcdoc"):
-            raise PreventUpdate
-        return {
-            "session_started_at": session_started_at,
-            "key": None,
-            "srcdoc": "",
-        }
+    latest_scores = _latest_chatbot_scores_file(session_started_at)
+    if latest_scores is not None:
+        try:
+            ss = latest_scores.stat()
+            new_scores_key = f"{latest_scores.resolve()}::{ss.st_mtime_ns}"
+            if new_scores_key != scores_key:
+                scores_key = new_scores_key
+                scores_file = str(latest_scores.resolve())
+        except OSError:
+            pass
 
-    key = f"{latest.resolve()}::{stat.st_mtime_ns}::{stat.st_size}"
-    if current_meta and current_meta.get("key") == key:
-        raise PreventUpdate
-
-    srcdoc = _read_chatbot_structure_srcdoc(latest)
-    if not srcdoc:
+    # Only push an update to the store when something actually changed.
+    composite_key = f"{struct_key}|{scores_key}"
+    old_composite_key = f"{current_meta.get('key')}|{current_meta.get('scores_key')}"
+    if composite_key == old_composite_key:
         raise PreventUpdate
 
     return {
         "session_started_at": session_started_at,
-        "key": key,
-        "file": latest.name,
-        "updated": datetime.fromtimestamp(stat.st_mtime).strftime("%H:%M:%S"),
+        "key": struct_key,
+        "file": file_name,
+        "updated": updated,
         "srcdoc": srcdoc,
+        "scores_key": scores_key,
+        "scores_file": scores_file,
     }
 
 
@@ -1840,8 +1895,102 @@ def render_chatbot_structure_preview(meta):
     if not meta or not meta.get("srcdoc"):
         return "", hidden_style, structure_visible, ""
 
-    label = f"Chatbot preview: {meta.get('file', 'structure.html')} (updated {meta.get('updated', '--:--:--')})"
-    return meta["srcdoc"], visible_style, structure_hidden, label
+    label = f"Chatbot structure loaded: {meta.get('file', 'structure.html')} (updated {meta.get('updated', '--:--:--')})"
+    return "", hidden_style, structure_visible, label
+
+
+@app.callback(
+    Output(struct_component.id(), "data", allow_duplicate=True),
+    Output("st_source", "children", allow_duplicate=True),
+    Input("chatbot_structure_meta_store", "data"),
+    State("absorber", "value"),
+    State("shakeup-store", "data"),
+    prevent_initial_call=True,
+)
+def update_structure_from_chatbot_meta(meta, el_type, shakeup_val):
+    """Load chatbot-generated structure into the same Crystal Toolkit viewer."""
+    if not meta or not meta.get("srcdoc"):
+        raise PreventUpdate
+
+    mpid = _extract_mpid_from_chatbot_meta(meta)
+    if not mpid:
+        raise PreventUpdate
+
+    try:
+        with MPRester() as mpr:
+            docs = mpr.materials.search(
+                material_ids=[mpid],
+                fields=["material_id", "structure"],
+            )
+    except Exception as exc:
+        print(f"Chatbot structure load failed for {mpid}: {exc}")
+        raise PreventUpdate
+
+    if not docs:
+        raise PreventUpdate
+
+    doc = docs[0]
+    st = getattr(doc, "structure", None)
+    if st is None or not isinstance(st, Structure):
+        raise PreventUpdate
+
+    st_dict = decorate_structure_with_xas(
+        st,
+        el_type,
+        apply_shakeup=(shakeup_val == "yes"),
+    )
+    st_dict["label"] = mpid
+    st_dict["material_id"] = mpid
+    st_dict["structure_id"] = mpid
+
+    return st_dict, f"Current structure: {mpid}"
+
+
+@app.callback(
+    Output("structure_scores_store", "data", allow_duplicate=True),
+    Output("matching_results_table", "children", allow_duplicate=True),
+    Output("comparison_range_store", "data", allow_duplicate=True),
+    Input("chatbot_structure_meta_store", "data"),
+    State("sort_metric_store", "data"),
+    prevent_initial_call=True,
+)
+def update_scores_from_chatbot_meta(meta, sort_metric):
+    """Load matching_scores.json written by the chatbot comparison analysis."""
+    if not meta or not meta.get("scores_file") or not meta.get("scores_key"):
+        raise PreventUpdate
+
+    scores_path = pathlib.Path(meta["scores_file"])
+    if not scores_path.is_file():
+        raise PreventUpdate
+
+    try:
+        scores = json.loads(scores_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[chatbot scores] failed to read {scores_path}: {exc}")
+        raise PreventUpdate
+
+    if not isinstance(scores, list) or not scores:
+        raise PreventUpdate
+
+    if sort_metric is None:
+        sort_metric = "coss_deriv"
+
+    # All entries are already marked selected=True by the chatbot command;
+    # ensure it in case the file was written without the flag.
+    for entry in scores:
+        entry.setdefault("selected", True)
+
+    scores = sort_scores_by_metric(scores, sort_metric)
+
+    comparison_range = None
+    for entry in scores:
+        cr = entry.get("comparison_range")
+        if cr:
+            comparison_range = cr
+            break
+
+    print(f"[chatbot scores] loaded {len(scores)} structures from {scores_path.name}")
+    return scores, build_scores_table(scores, sort_metric), comparison_range
 
 
 @app.callback(
@@ -2721,6 +2870,7 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
 
             last_st_dict = st_dict
             last_mpid = mpid
+            successful += 1
 
         except Exception as e:
             print(f"Error processing {mpid}: {e}")
