@@ -3518,12 +3518,13 @@ def handle_clear_scores(n_clicks):
     Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
     Input('sort_metric_store', 'data'),
     Input('shakeup-store', 'data'),
+    Input({'type': 'select-all-checkbox'}, 'value'),
     State('structure_scores_store', 'data'),
     State('st_source', 'children'),
     State('absorber', 'value'),
     prevent_initial_call=True
 )
-def update_matching_results(st_data, exp_data, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
+def update_matching_results(st_data, exp_data, checkbox_values, sort_metric, shakeup_val, select_all_value, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
 
@@ -3537,6 +3538,17 @@ def update_matching_results(st_data, exp_data, checkbox_values, sort_metric, sha
 
     if sort_metric is None:
         sort_metric = 'coss_deriv'
+
+    # Handle select-all checkbox toggle
+    if 'select-all-checkbox' in trigger_id:
+        if select_all_value:
+            for s in existing_scores:
+                s['selected'] = True
+        else:
+            for s in existing_scores:
+                s['selected'] = False
+        existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
+        return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
 
     if checkbox_values:
         for i, score_entry in enumerate(existing_scores):
@@ -3809,8 +3821,19 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
         "textAlign": "right",
     }
 
+    all_selected = all(entry.get('selected', False) for entry in scores)
+
     header_cells = [
-        html.Th("", style={**base_header_style, "width": "28px", "textAlign": "center"}),
+        html.Th(
+            dcc.Checklist(
+                id={'type': 'select-all-checkbox'},
+                options=[{'label': '', 'value': True}],
+                value=[True] if all_selected else [],
+                style={"margin": "0", "padding": "0"},
+                inputStyle={"marginRight": "0"}
+            ),
+            style={**base_header_style, "width": "28px", "textAlign": "center"}
+        ),
         html.Th("#", style={**base_header_style, "width": "22px", "textAlign": "center"}),
         html.Th("Structure", style={**base_header_style, "textAlign": "left", "minWidth": "70px"}),
         html.Th("Shift", style={**base_header_style, "width": "50px"}),
