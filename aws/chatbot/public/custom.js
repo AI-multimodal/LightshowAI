@@ -23,11 +23,11 @@
         return originalScrollIntoView.apply(this, arguments);
     };
 
-    // preventScroll before interaction
+    // block focus completely before interaction
     const originalFocus = HTMLElement.prototype.focus;
     HTMLElement.prototype.focus = function(options) {
         if (!hasInteracted) {
-            return originalFocus.call(this, { ...options, preventScroll: true });
+            return; 
         }
         return originalFocus.apply(this, arguments);
     };

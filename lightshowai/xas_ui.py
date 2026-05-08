@@ -754,12 +754,13 @@ mpid_list_input = dcc.Textarea(
     placeholder="Enter MP IDs separated by commas, spaces, or new lines\nExample:\nmp-390, mp-2657\nmp-5827",
     style={
         "width": "100%",
-        "height": "90px",
+        "minHeight": "105px",
         "padding": "10px 12px",
         "borderRadius": "6px",
         "border": "1px solid #ddd",
         "fontSize": "12px",
         "boxSizing": "border-box",
+        "resize": "vertical",
         "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
     }
 )
@@ -768,16 +769,14 @@ mpid_search_btn = html.Button(
     "Search MP IDs",
     id="mpid_search_btn",
     style={
-        'padding': '8px 16px',
-        'fontSize': '12px',
-        'border': 'none',
-        'borderRadius': '6px',
-        'backgroundColor': '#333',
-        'color': 'white',
-        'cursor': 'pointer',
-        'fontWeight': '500',
-        'marginTop': '8px',
-        'fontFamily': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        **button_primary_style,
+        "width": "100%",
+        "padding": "12px",
+        "fontSize": "12px",
+        "marginTop": "8px",
+        "marginBottom": "12px",
+        "marginRight": "0",
+        "borderRadius": "6px"
     }
 )
 
@@ -1217,7 +1216,7 @@ onmixas_layout = html.Div([
                             html.Div([
                                 exp_apply_btn,
                                 clear_exp_btn,
-                            ], style={"marginTop": "12px"}),
+                            ], style={"marginTop": "12px", "marginBottom": "15px"}),
                         ],
                         style={"display": "none"}
                     ),
@@ -2780,13 +2779,13 @@ def download_xas_prediction(n_clicks, st_data, el_type):
 
     return download_data
 
-
 @app.callback(
     Output(struct_component.id(), "data", allow_duplicate=True),
     Output('st_source', "children", allow_duplicate=True),
     Output('structure_scores_store', 'data', allow_duplicate=True),
     Output('matching_results_table', 'children', allow_duplicate=True),
     Output('comparison_range_store', 'data', allow_duplicate=True),
+    Output('mpid_list_input', 'value'),
     Input("mpid_search_btn", "n_clicks"),
     State("mpid_list_input", "value"),
     State('absorber', 'value'),
@@ -2915,7 +2914,8 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
             source_text,
             existing_scores,
             build_scores_table(existing_scores, sort_metric),
-            comparison_range
+            comparison_range,
+            dash.no_update
         )
 
     if successful == 1:
@@ -2931,7 +2931,8 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
         source_text,
         existing_scores,
         build_scores_table(existing_scores, sort_metric),
-        comparison_range
+        comparison_range,
+        ""
     )
 
 
@@ -3482,12 +3483,38 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     return clicked_metric
 
 @app.callback(
+    Output('structure_scores_store', 'data', allow_duplicate=True),
+    Output('matching_results_table', 'children', allow_duplicate=True),
+    Output('comparison_range_store', 'data', allow_duplicate=True),
+    Output(struct_component.id(), 'data', allow_duplicate=True),
+    Output('st_source', 'children', allow_duplicate=True),
+    Output('selected_spectra_store', 'data', allow_duplicate=True),
+    Output('xas_plot', 'figure', allow_duplicate=True),
+    Input('clear_scores_btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def handle_clear_scores(n_clicks):
+    """Handle entirely clearing out structures, graphs, and scores."""
+    if not n_clicks:
+        raise PreventUpdate
+    
+    return (
+        [], # Clear scores store
+        html.Div("Upload experimental spectrum and load structures to see matching scores",
+                 style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}),
+        None, # Clear comparison range
+        None, # Clear structure viewer (Reverted to None to avoid pymatgen error)
+        "No structure loaded yet", # Reset source text
+        [], # Clear selected spectra store
+        go.Figure() # Clear the XAS plot completely
+    )
+
+@app.callback(
     Output('structure_scores_store', 'data'),
     Output('matching_results_table', 'children'),
     Output('comparison_range_store', 'data'),
     Input(struct_component.id(), "data"),
     Input('exp_spectrum_store', 'data'),
-    Input('clear_scores_btn', 'n_clicks'),
     Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
     Input('sort_metric_store', 'data'),
     Input('shakeup-store', 'data'),
@@ -3496,7 +3523,7 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     State('absorber', 'value'),
     prevent_initial_call=True
 )
-def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
+def update_matching_results(st_data, exp_data, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
 
@@ -3511,18 +3538,16 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
     if sort_metric is None:
         sort_metric = 'coss_deriv'
 
-    if 'clear_scores_btn' in trigger_id:
-        return[], html.Div("Upload experimental spectrum and load structures to see matching scores",
-                           style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
-
-    if 'spectrum-checkbox' in trigger_id:
+    if checkbox_values:
         for i, score_entry in enumerate(existing_scores):
             if i < len(checkbox_values):
                 score_entry['selected'] = bool(checkbox_values[i])
-        existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
-        return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
 
-    if 'sort_metric_store' in trigger_id:
+    if not existing_scores and 'st_vis' not in trigger_id:
+        return [], html.Div("Load a structure to see matching scores",
+                           style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
+
+    if 'spectrum-checkbox' in trigger_id or 'sort_metric_store' in trigger_id:
         existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
         return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
 
