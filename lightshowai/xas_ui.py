@@ -341,7 +341,7 @@ xas_model_names = [f'{el} FEFF' for el in all_elements] + ['Ti VASP', 'Cu VASP']
 absorber_dropdown = dcc.Dropdown(xas_model_names, clearable=False, value='Ti VASP', id='absorber')
 
 # All available metrics for display
-ALL_METRICS = ["coss_deriv", "pearson", "spearman", "coss", "kendalltaub", "normed_wasserstein"]
+ALL_METRICS = ["pearson", "spearman", "kendalltaub", "coss_deriv", "coss", "normed_wasserstein"]
 
 # Short display names for table headers
 METRIC_SHORT_NAMES = {
@@ -1937,7 +1937,6 @@ def update_structure_from_chatbot_meta(meta, el_type, shakeup_val):
     st_dict = decorate_structure_with_xas(
         st,
         el_type,
-        apply_shakeup=(shakeup_val == "yes"),
     )
     st_dict["label"] = mpid
     st_dict["material_id"] = mpid
@@ -2279,6 +2278,18 @@ def update_shakeup_toggle(_, __, current_val):
     current_val = _radio_callback('btn-shakeup-on', 'btn-shakeup-off', 'yes', 'no', current_val)
     left, right = _radio_btn_styles(current_val == 'yes')
     return current_val, left, right
+
+def apply_shakeup_if_needed(specs, element, el_type, shakeup_val):
+    """Returns a new specs dictionary with shakeup applied on-the-fly if toggled ON."""
+    if not specs or shakeup_val != 'yes':
+        return specs
+        
+    orig_ene = ene_grid.get(element, ene_grid['Ti'])
+    new_specs = {}
+    for k, v in specs.items():
+        shaken = shakeupSpectrum(np.column_stack((orig_ene, v)), _Aw, pad_right=10, truncate_right=0.5)
+        new_specs[k] = np.interp(orig_ene, shaken[:, 0], shaken[:, 1]).tolist()
+    return new_specs
 
 @app.callback(
     Output('shakeup-toggle-container', 'style'),
@@ -2842,7 +2853,8 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
                 failed_ids.append(f"{mpid} (no spectrum)")
                 continue
 
-            specs_array = np.array(list(specs.values()))
+            processed_specs = apply_shakeup_if_needed(specs, element, el_type, shakeup_val)
+            specs_array = np.array(list(processed_specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
             energy = ene_grid[element].tolist()
 
@@ -2923,24 +2935,12 @@ def update_structure_by_mpid(n_clicks, mpid_list_value, el_type, shakeup_val, ex
     )
 
 
-def decorate_structure_with_xas(st: Structure, el_type, apply_shakeup=False):
+def decorate_structure_with_xas(st: Structure, el_type):
     absorbing_site, spectroscopy_type = el_type.split(' ')
     st_dict = st.as_dict()
     if absorbing_site in st.composition:
         print("XAS Spectrum generated for structure:", st, absorbing_site, spectroscopy_type)
         specs = predict(st, absorbing_site, spectroscopy_type)
-        if apply_shakeup and el_type == 'Ti VASP':
-            new_specs = {}
-            for k, v in specs.items():
-                orig_ene = ene_grid['Ti']
-                shaken = shakeupSpectrum(
-                    np.column_stack((orig_ene, v)),
-                    _Aw, pad_right=10, truncate_right=0.5
-                )
-                shaken_interp = np.interp(orig_ene, shaken[:, 0], shaken[:, 1])
-                new_specs[k] = shaken_interp.tolist()
-            specs = new_specs
-            
         st_dict['xas'] = specs
     else:
         st_dict['xas'] = {}
@@ -3066,21 +3066,13 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             print("XAS Spectrum generated for structure:", st, element, el_type.split(' ')[1])
             specs = predict(st, element, el_type.split(' ')[1])
             
-            if shakeup_val == 'yes' and el_type == 'Ti VASP':
-                orig_ene = ene_grid['Ti']
-                new_specs = {}
-                for k, v in specs.items():
-                    shaken = shakeupSpectrum(np.column_stack((orig_ene, v)), _Aw, pad_right=10, truncate_right=0.5)
-                    new_specs[k] = np.interp(orig_ene, shaken[:, 0], shaken[:, 1]).tolist()
-                specs = new_specs
-
             if len(specs) == 0:
                 failed += 1
                 failed_files.append(f"{filename} (no spectrum)")
                 continue
 
-            # Calculate average spectrum
-            specs_array = np.array(list(specs.values()))
+            processed_specs = apply_shakeup_if_needed(specs, element, el_type, shakeup_val)
+            specs_array = np.array(list(processed_specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
             energy = ene_grid[element].tolist()
 
@@ -3352,30 +3344,32 @@ def build_figure_with_exp(predicted_spectrum, exp_data, el_type, is_average, no_
     Input('comparison_range_store', 'data'),
     Input('structure_scores_store', 'data'),
     State('absorber', 'value'),
-    State('st_source', 'children')
+    State('st_source', 'children'),
+    State('shakeup-store', 'data')
 )
-def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comparison_range, structure_scores, el_type, structure_source) -> Structure:
+def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comparison_range, structure_scores, el_type, structure_source, shakeup_val):
     if st_data is None and exp_data is None:
         raise PreventUpdate
 
     current_structure_id = get_current_structure_label(st_data, structure_source)
     
-
-    selected_spectra = None
-    if structure_scores:
-        selected_spectra = [s for s in structure_scores if s.get('selected', False) and 'spectrum' in s]
-        if len(selected_spectra) == 0:
-            selected_spectra = None
+    has_scores = structure_scores is not None and len(structure_scores) > 0
+    selected_spectra =[]
+    
+    if has_scores:
+        selected_spectra =[s for s in structure_scores if s.get('selected', False) and 'spectrum' in s]
 
     predicted_spectrum = None
     no_element = False
 
-    if selected_spectra is None and st_data is not None:
+    if not has_scores and st_data is not None:
         specs = st_data.get('xas', {})
         if len(specs) == 0:
             no_element = True
         else:
-            specs_array = np.array(list(specs.values()))
+            element = el_type.split(' ')[0]
+            processed_specs = apply_shakeup_if_needed(specs, element, el_type, shakeup_val)
+            specs_array = np.array(list(processed_specs.values()))
             predicted_spectrum = specs_array.mean(axis=0)
 
     fig = build_figure_with_exp(
@@ -3386,7 +3380,6 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
     )
     return fig
 
-
 @app.callback(
     Output("xas_plot", "figure", allow_duplicate=True),
     Input(struct_component.id('scene'), "selectedObject"),
@@ -3395,16 +3388,17 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
     State('absorber', 'value'),
     State('energy_shift_slider', 'value'),
     State('comparison_range_store', 'data'),
-    State('st_source', 'children')
+    State('st_source', 'children'),
+    State('shakeup-store', 'data')
 )
-def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, comparison_range, structure_source) -> Structure:
+def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, comparison_range, structure_source, shakeup_val) -> Structure:
     if st_data is None:
         raise PreventUpdate
 
     current_structure_id = get_current_structure_label(st_data, structure_source)
 
-    specs = st_data['xas']
     element = el_type.split(' ')[0]
+    specs = apply_shakeup_if_needed(st_data.get('xas', {}), element, el_type, shakeup_val)
     shift = energy_shift or 0
     if len(specs) == 0:
         fig = build_figure_with_exp(None, exp_data, el_type, is_average=False, no_element=True, sel_mismatch=False, energy_shift=shift, comparison_range=comparison_range, current_structure_id=current_structure_id)
@@ -3433,14 +3427,13 @@ def predict_site_specific_xas(sel, st_data, exp_data, el_type, energy_shift, com
 @app.callback(
     Output(struct_component.id(), "data", allow_duplicate=True),
     Input('absorber', 'value'),
-    State(struct_component.id(), "data"),
-    Input('shakeup-store', 'data'),
+    State(struct_component.id(), "data")
 )
-def update_structure_by_absorber(el_type, st_data, shakeup_val) -> Structure:
+def update_structure_by_absorber(el_type, st_data):
     if st_data is None:
         raise PreventUpdate
     st = Structure.from_dict(st_data)
-    st_dict = decorate_structure_with_xas(st, el_type, apply_shakeup=(shakeup_val == 'yes'))
+    st_dict = decorate_structure_with_xas(st, el_type)
     return st_dict
 
 
@@ -3497,12 +3490,13 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     Input('clear_scores_btn', 'n_clicks'),
     Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
     Input('sort_metric_store', 'data'),
+    Input('shakeup-store', 'data'),
     State('structure_scores_store', 'data'),
     State('st_source', 'children'),
     State('absorber', 'value'),
     prevent_initial_call=True
 )
-def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, existing_scores, structure_source, el_type):
+def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
 
@@ -3512,13 +3506,13 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
     trigger_id = ctx.triggered[0]['prop_id']
 
     if existing_scores is None:
-        existing_scores = []
+        existing_scores =[]
 
     if sort_metric is None:
         sort_metric = 'coss_deriv'
 
     if 'clear_scores_btn' in trigger_id:
-        return [], html.Div("Upload experimental spectrum and load structures to see matching scores",
+        return[], html.Div("Upload experimental spectrum and load structures to see matching scores",
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
 
     if 'spectrum-checkbox' in trigger_id:
@@ -3533,6 +3527,45 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
 
     has_exp_data = exp_data is not None and 'energy' in exp_data and 'absorption' in exp_data
+    element = el_type.split(' ')[0]
+
+    # recalculate if shakeup is toggled or new experimental data is made
+    if 'shakeup-store' in trigger_id or 'exp_spectrum_store' in trigger_id:
+        if len(existing_scores) == 0:
+            return existing_scores, html.Div("Load a structure to see matching scores",
+                           style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), dash.no_update
+            
+        for s in existing_scores:
+            st_dict = s.get('st_data', {})
+            specs = st_dict.get('xas', {})
+            if not specs:
+                continue
+            
+            processed_specs = apply_shakeup_if_needed(specs, s['element'], el_type, shakeup_val)
+            specs_array = np.array(list(processed_specs.values()))
+            predicted_spectrum = specs_array.mean(axis=0)
+            s['spectrum'] = predicted_spectrum.tolist()
+            
+            if has_exp_data:
+                match_result = get_spectrum_match_score(predicted_spectrum, exp_data, s['element'])
+                s['score'] = match_result['score']
+                s['shift'] = match_result['shift']
+                s['correlations'] = match_result['correlations']
+                s['comparison_range'] = match_result['comparison_range']
+            else:
+                s['score'] = 0.0
+                s['shift'] = 0.0
+                s['correlations'] = {}
+                s['comparison_range'] = None
+                
+        existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
+        
+        comp_range = None
+        if len(existing_scores) > 0:
+            active_entry = next((e for e in existing_scores if e.get('selected')), existing_scores[0])
+            comp_range = active_entry.get('comparison_range')
+            
+        return existing_scores, build_scores_table(existing_scores, sort_metric), comp_range
 
     if not has_exp_data:
         if len(existing_scores) == 0:
@@ -3556,9 +3589,9 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         else:
             return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
 
-    specs_array = np.array(list(specs.values()))
+    processed_specs = apply_shakeup_if_needed(specs, element, el_type, shakeup_val)
+    specs_array = np.array(list(processed_specs.values()))
     predicted_spectrum = specs_array.mean(axis=0)
-    element = el_type.split(' ')[0]
     energy = ene_grid[element].tolist()
 
     structure_id = None
@@ -3589,7 +3622,7 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
         'st_data': st_data,
     })
 
-    updated_scores = mark_active_structure_selected(updated_scores, structure_id)
+    updated_scores = mark_active_structure_selected(updated_scores, structure_id, only_active=False)
     updated_scores = sort_scores_by_metric(updated_scores, sort_metric)
 
     return updated_scores, build_scores_table(updated_scores, sort_metric), match_result['comparison_range']
