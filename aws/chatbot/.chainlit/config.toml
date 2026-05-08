@@ -54,6 +54,9 @@ cot = "tool_call"
 # Specify a custom CSS file injected into the head element of the chatbot frontend
 custom_css = "/public/custom.css"
 
+# Specify a custom JS file injected into the head element of the chatbot frontend
+custom_js = "/public/custom.js"
+
 # Specify a custom font URL or local path
 # custom_font = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 
