@@ -27,12 +27,11 @@ if [ ! -f "$SSL_DIR/cert.pem" ] || [ ! -f "$SSL_DIR/key.pem" ]; then
     -subj "/C=US/ST=NY/L=Upton/O=Local/OU=Dev/CN=localhost"
 fi
 
-# Render from template and switch to a non-privileged TLS port for macOS.
+# Render from template for standard HTTPS port 443 (like Linux script).
 sed \
   -e "s|{{PROJECT_ROOT}}|$PROJECT_ROOT|g" \
   -e "s|{{LOG_DIR}}|$LOG_DIR|g" \
   -e "s|{{SSL_DIR}}|$SSL_DIR|g" \
-  -e "s|<VirtualHost \*:443>|<VirtualHost *:8444>|g" \
   "$APACHE_TEMPLATE" > "$APACHE_RENDERED"
 
 cat >> "$APACHE_RENDERED" <<EOF
@@ -91,7 +90,7 @@ uncomment_or_append "LoadModule headers_module lib/httpd/modules/mod_headers.so"
 uncomment_or_append "LoadModule socache_shmcb_module lib/httpd/modules/mod_socache_shmcb.so" "$HTTPD_CONF"
 
 # Ensure listen ports for local TLS vhosts.
-ensure_line "Listen 8444" "$HTTPD_CONF"
+ensure_line "Listen 443" "$HTTPD_CONF"
 ensure_line "Listen 8445" "$HTTPD_CONF"
 
 # Include generated site config.
@@ -101,6 +100,6 @@ ensure_line "Include $APACHE_RENDERED" "$HTTPD_CONF"
 brew services restart httpd
 
 echo "Apache configured for macOS (Homebrew httpd)."
-echo "Static site: https://localhost:8444/"
-echo "Dash app:    https://localhost:8444/omnixas/"
+echo "Static site: https://localhost/"
+echo "Dash app:    https://localhost/omnixas/"
 echo "Chatbot:     https://localhost:8445/"
