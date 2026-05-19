@@ -1909,10 +1909,8 @@ def predict_average_xas(st_data: dict, exp_data: dict, energy_shift: float, comp
             current_structure_id = structure_source
     
     selected_spectra = None
-    if structure_scores:
+    if structure_scores is not None and len(structure_scores) > 0:
         selected_spectra = [s for s in structure_scores if s.get('selected', False) and 'spectrum' in s]
-        if len(selected_spectra) == 0:
-            selected_spectra = None
     
     predicted_spectrum = None
     no_element = False
@@ -2050,12 +2048,13 @@ def handle_sort_click(n_clicks_list, current_sort_metric):
     Input({'type': 'spectrum-checkbox', 'index': ALL}, 'value'),
     Input('sort_metric_store', 'data'),
     Input('shakeup-store', 'data'),
+    Input({'type': 'select-all-checkbox', 'index': ALL}, 'value'),
     State('structure_scores_store', 'data'),
     State('st_source', 'children'),
     State('absorber', 'value'),
     prevent_initial_call=True
 )
-def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, shakeup_val, existing_scores, structure_source, el_type):
+def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, sort_metric, shakeup_val, select_all_value, existing_scores, structure_source, el_type):
     """Update the matching results table when a structure is loaded and experimental data is available."""
     ctx = dash.callback_context
     
@@ -2073,6 +2072,13 @@ def update_matching_results(st_data, exp_data, clear_clicks, checkbox_values, so
     if 'clear_scores_btn' in trigger_id:
         return [], html.Div("Upload experimental spectrum and load structures to see matching scores", 
                            style={"color": "#999", "fontSize": "12px", "textAlign": "center", "padding": "20px"}), None
+    
+    if 'select-all-checkbox' in trigger_id:
+        is_selected = bool(select_all_value and select_all_value[0])
+        for s in existing_scores:
+            s['selected'] = is_selected
+        existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
+        return existing_scores, build_scores_table(existing_scores, sort_metric), dash.no_update
     
     if 'spectrum-checkbox' in trigger_id:
         for i, score_entry in enumerate(existing_scores):
@@ -2233,13 +2239,24 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
         "textAlign": "right",
     }
     
+    all_selected = all(entry.get('selected', False) for entry in scores)
+    
     header_cells = [
-        html.Th("", style={**base_header_style, "width": "28px", "textAlign": "center"}),
+        html.Th(
+            dcc.Checklist(
+                id={'type': 'select-all-checkbox', 'index': 0},
+                options=[{'label': '', 'value': True}],
+                value=[True] if all_selected else [],
+                style={"margin": "0", "padding": "0"},
+                inputStyle={"marginRight": "0"}
+            ),
+            style={**base_header_style, "width": "28px", "textAlign": "center"}
+        ),
         html.Th("#", style={**base_header_style, "width": "22px", "textAlign": "center"}),
         html.Th("Structure", style={**base_header_style, "textAlign": "left", "minWidth": "70px"}),
         html.Th("Shift", style={**base_header_style, "width": "50px"}),
     ]
-    
+
     for metric in ALL_METRICS:
         is_active = (metric == sort_metric)
         style = active_header_style if is_active else base_header_style
