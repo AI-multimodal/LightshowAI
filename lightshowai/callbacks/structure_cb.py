@@ -109,7 +109,7 @@ def register_callbacks(app):
                 st_dict["structure_id"] = mpid
 
                 old_entry = next((s for s in existing_scores if s["structure_id"] == mpid), None)
-                was_selected = old_entry.get("selected", False) if old_entry else False
+                was_selected = old_entry.get("selected", True) if old_entry else True
 
                 existing_scores = [s for s in existing_scores if s["structure_id"] != mpid]
 
@@ -139,7 +139,7 @@ def register_callbacks(app):
                 traceback.print_exc()
                 failed += 1
                 failed_ids.append(mpid)
-        existing_scores = mark_active_structure_selected(existing_scores, last_mpid)
+        existing_scores = mark_active_structure_selected(existing_scores, last_mpid, only_active=False)
         existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
 
         if successful == 0:
@@ -253,7 +253,7 @@ def register_callbacks(app):
                 st_dict["structure_id"] = structure_id
 
                 old_entry = next((s for s in existing_scores if s['structure_id'] == structure_id), None)
-                was_selected = old_entry.get('selected', False) if old_entry else False
+                was_selected = old_entry.get('selected', True) if old_entry else True
                 existing_scores = [s for s in existing_scores if s['structure_id'] != structure_id]
 
                 existing_scores.append({
@@ -284,7 +284,7 @@ def register_callbacks(app):
                 failed += 1
                 failed_files.append(filename)
 
-        existing_scores = mark_active_structure_selected(existing_scores, last_structure_id)
+        existing_scores = mark_active_structure_selected(existing_scores, last_structure_id, only_active=False)
         existing_scores = sort_scores_by_metric(existing_scores, sort_metric)
         
         if successful > 0 and failed == 0:

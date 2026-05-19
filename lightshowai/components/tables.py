@@ -41,7 +41,12 @@ def build_scores_table(scores, sort_metric='coss_deriv'):
 
     # Return cached table if scores haven't changed
     current_key = tuple(
-        (s.get('structure_id', ''), s.get('selected', False))
+        (
+            s.get('structure_id', ''),
+            s.get('selected', False),
+            s.get('score', 0.0),
+            tuple(sorted((s.get('correlations') or {}).items()))
+        )
         for s in scores
     )
     if current_key == _scores_cache.get('scores') and sort_metric == _scores_cache.get('sort_metric'):
