@@ -155,7 +155,7 @@
             </div>
 
             <ul style="border-radius: 0; padding-top: 10px; background: #fff !important;">
-                <li><a href="#app-tab">Demo</a></li>
+                <li><a href="#app-tab">Analysis</a></li>
                 <li><a href="#manual-tab">Manual</a></li>
                 <li><a href="#info-tab">About</a></li>
                 <li><a href="#license-tab">License</a></li>
@@ -351,7 +351,7 @@
 		$(document).ready(function () {
 			$(".tabs").tabs({
 				activate: function (event, ui) {
-					// forces resize of the iframe when going back to the demo tab
+					// forces resize of the iframe when going back to the Analysis tab
 					if (ui.newPanel.attr('id') === 'app-tab' && window.forceDashResize) {
 						window.forceDashResize();
 					}
