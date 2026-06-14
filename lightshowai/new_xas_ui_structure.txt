@@ -1,0 +1,38 @@
+All original folders and files that were here before remain unchanged.
+
+New structure:
+
+lightshowai/
+├── app.py          <-- dash app initialization
+├── xas_ui.py       <-- entry point into the program
+├── auth.py         <-- kept from original
+├── models.py       <-- kept from original
+
+├── core/           <-- core logic
+│   ├── matching.py     
+│   ├── math_utils.py   
+│   ├── parsing.py      
+│   └── patches.py      
+│
+├── services/       <-- services for misc functions
+│   ├── chatbot.py      
+│   ├── redis_store.py  
+│   └── tiled_client.py 
+│
+├── components/     <-- UI layout split up into several components
+│   ├── styles.py
+│   ├── inputs.py
+│   ├── tables.py
+│   ├── plots.py
+│   ├── viewer.py
+│   └── layout.py
+│
+├── callbacks/      <-- Dash callback logic, split by functional area
+│   ├── __init__.py
+│   ├── upload_cb.py
+│   ├── tiled_cb.py
+│   ├── structure_cb.py
+│   ├── chatbot_cb.py
+│   ├── plot_cb.py
+│   ├── matching_cb.py
+│   └── ui_cb.py
