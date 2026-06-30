@@ -218,7 +218,9 @@ batch_upload_component = dcc.Upload(
         'fontFamily': base_font
     },
     multiple=True,  # Allow single or multiple file selection
-    accept='.cif,.vasp,.poscar,.json'
+    # Do not set an "accept" filter: standard VASP files are often named
+    # POSCAR/CONTCAR with no extension, and browsers can reject extensionless
+    # files when a file-type filter is present. The parser below validates input.
 )
 
 shakeup_store = dcc.Store(id='shakeup-store', data='no')
@@ -634,7 +636,7 @@ onmixas_layout = html.Div([
                     # Combined single/multiple file upload
                     html.Div("Upload structure file(s):", style={**input_label_style, "marginBottom": "4px"}),
                     html.Div(
-                        "Single or multiple files • Supported: .cif, .vasp, .poscar, .json",
+                        "Single or multiple files • Supported: .cif, .vasp, .poscar/.contcar, POSCAR/CONTCAR, .json",
                         style={"fontSize": "10px", "color": "#999", "marginBottom": "8px"}
                     ),
                     batch_upload_component,
@@ -1505,50 +1507,58 @@ def decorate_structure_with_xas(st: Structure, el_type, apply_shakeup=False):
 def parse_structure_file(contents, filename):
     """
     Parse a structure file from base64-encoded contents.
-    Supports CIF, VASP/POSCAR, and JSON formats.
+    Supports CIF, VASP POSCAR/CONTCAR, and JSON formats.
     """
     try:
-        content_type, content_string = contents.split(',')
+        _, content_string = contents.split(',', 1)
         decoded = b64decode(content_string)
-        
-        ext = pathlib.Path(filename).suffix.lower()
-        
-        if ext in ['.cif']:
-            # CIF format
+        text = decoded.decode('utf-8-sig')
+
+        file_path = pathlib.PurePath(filename or "")
+        ext = file_path.suffix.lower()
+        basename = file_path.name.lower()
+        vasp_extensions = {'.vasp', '.poscar', '.contcar'}
+        vasp_filenames = {'poscar', 'contcar'}
+
+        def parse_cif():
             from pymatgen.io.cif import CifParser
-            text = decoded.decode('utf-8')
             parser = CifParser.from_str(text)
-            st = parser.parse_structures()[0]
-        elif ext in ['.vasp', '.poscar', '']:
-            # VASP/POSCAR format
+            return parser.parse_structures()[0]
+
+        def parse_poscar():
             from pymatgen.io.vasp import Poscar
-            text = decoded.decode('utf-8')
-            poscar = Poscar.from_str(text)
-            st = poscar.structure
-        elif ext == '.json':
-            # JSON format (pymatgen Structure dict)
+            return Poscar.from_str(text).structure
+
+        def parse_json():
             import json
-            text = decoded.decode('utf-8')
             data = json.loads(text)
-            st = Structure.from_dict(data)
-        else:
-            # Try to auto-detect format
-            text = decoded.decode('utf-8')
+            return Structure.from_dict(data)
+
+        if ext == '.cif':
+            return parse_cif()
+        if ext in vasp_extensions or basename in vasp_filenames:
+            return parse_poscar()
+        if ext == '.json':
+            return parse_json()
+
+        # Unknown extension (or no extension with a non-standard name): try the
+        # supported formats. This keeps existing permissive behavior while
+        # allowing canonical extensionless POSCAR/CONTCAR uploads.
+        errors = []
+        for format_name, parser in (
+            ('JSON', parse_json),
+            ('CIF', parse_cif),
+            ('POSCAR/CONTCAR', parse_poscar),
+        ):
             try:
-                # Try CIF first
-                from pymatgen.io.cif import CifParser
-                parser = CifParser.from_str(text)
-                st = parser.parse_structures()[0]
-            except:
-                try:
-                    # Try POSCAR
-                    from pymatgen.io.vasp import Poscar
-                    poscar = Poscar.from_str(text)
-                    st = poscar.structure
-                except:
-                    raise ValueError(f"Could not parse file format: {ext}")
-        
-        return st
+                return parser()
+            except Exception as parse_error:
+                errors.append(f"{format_name}: {parse_error}")
+
+        raise ValueError(
+            f"Could not parse file format for {filename or 'uploaded file'} "
+            f"({ext or 'no extension'}). Tried " + "; ".join(errors)
+        )
     except Exception as e:
         print(f"Error parsing structure file {filename}: {e}")
         import traceback
