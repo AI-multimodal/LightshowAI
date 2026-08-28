@@ -1606,7 +1606,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     failed = 0
     failed_files = []
     last_st_dict = None
-    last_filename = None
+    last_structure_id = None
     comparison_range = None
     
     for contents, filename in zip(contents_list, filenames_list):
@@ -1640,8 +1640,14 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             predicted_spectrum = specs_array.mean(axis=0)
             energy = ene_grid[element].tolist()
             
-            # Get structure ID from filename (remove extension)
-            structure_id = pathlib.Path(filename).stem
+            # Give duplicate filenames unique IDs instead of replacing prior uploads.
+            base_id = pathlib.Path(filename).stem
+            structure_id = base_id
+            counter = 2
+            existing_ids = {entry['structure_id'] for entry in existing_scores}
+            while structure_id in existing_ids:
+                structure_id = f"{base_id}{counter}"
+                counter += 1
             
             # Compare with experimental data if available
             
@@ -1686,7 +1692,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             
             # Store last structure for display
             last_st_dict = st_dict
-            last_filename = filename
+            last_structure_id = structure_id
             
             successful += 1
             
@@ -1713,7 +1719,7 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
     
     # Update source text
     if successful == 1:
-        source_text = f"Current structure: {last_filename}"
+        source_text = f"Current structure: {last_structure_id}"
     elif successful > 1:
         source_text = f"Batch loaded: {successful} structures"
     else:
