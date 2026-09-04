@@ -188,70 +188,31 @@
 			<div id="manual-tab" style="background-color: #f5f5f5; padding: 40px 0 60px 0; margin-top: 16px; flex-grow: 1;">
 				<div class="container_24">
 					<div class="grid_24">
-						<h1 style="border: 0px solid black;">Manual</h1>
-						
-						<h2 style="margin-bottom: 0.5em;">Overview</h2>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							<strong>LightshowAI</strong> is an AI-enabled web-based user interface (UI) that allows researchers to interactively refine the material structure from the measured XAS spectra. The basic usage provides a spectral matching utility, which compares measured XANES spectra against ML-predicted spectra from candidate structures. This capability helps users to identify the atomic structures associated with the measured spectra, although the solution may not be unique because XANES is a local structure probe.
-						</p>
-
-						<h2 style="margin-top: 2em; margin-bottom: 0.5em;">Web UI Workflow &amp; Features</h2>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">Uploading Experimental Data</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Upload Experimental Spectrum panel is where the analysis workflow begins using either normalized or raw spectrum data. You can upload the spectral data file in supported formats such as <strong>.csv</strong>, <strong>.dat</strong>, <strong>.mat</strong>, or <strong>.xdi</strong>, and optionally add a material name. After uploading, use the radio buttons to select whether the data is normalized or raw. If your data is normalized, choose the X-axis (Energy) and Y-axis (Absorption) columns. For raw data, choose whether the measurement type is fluorescent or transmission, and define your Energy, i<sub>0</sub>, and i<sub>t</sub> / i<sub>ff</sub> columns. The interface can automatically detect the columns from the uploaded data. However, it is recommended to double check that the columns were assigned correctly. Lastly, hit the "Apply &amp; Plot" button to show the measured spectrum in the spectral visualizer.
-						</p>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">Load Structure</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Load Structure panel allows you to input candidate structures through two methods. The first method is a structure database search. Currently, we only support the Materials Project interface using Materials Project Search, where you can enter a Materials Project ID (such as mp-390). The second method you can use is the Batch Structure Upload feature which allows you to drag and drop single or multiple structure files in <strong>.cif</strong>, <strong>.vasp</strong>, <strong>.poscar</strong>, or <strong>.json</strong> formats. After the structures are loaded, the system will automatically generate the ML-predicted spectra for each one of them and compute corresponding matching score metrics against the experimental spectrum.
-						</p>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">Crystal Structure Viewer</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Crystal Structure Viewer panel allows you to interactively explore the uploaded atomic model in a 3d environment. Clicking on specific atoms within the viewer will isolate and display site-specific predicted XANES spectra directly on the plot.
-						</p>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">XAS Machine Learning Model</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							This panel lets you select the element type of the absorber and theory used to train model. Currently, we provide <strong>OmniXAS</strong> graph neural network models of 3d transition metal K-edge XANES trained on two levels of theory, FEFF (8 elements) and VASP (Ti and Cu only). For Ti VASP model, you are also provided with a toggle to turn the Shake-up Correction on or off.
-						</p>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">Shake-up Corrections &amp; Validation</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							Shake-up effects in XAS arise from the simultaneous excitation of valence electrons during a core-level transition. While these many-body effects manifest as satellite peaks in X-ray photoemission spectroscopy, they represent physics beyond the standard quasiparticle approximation typically used in simulations.
-						</p>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							Currently, the shake-up implementation in LightshowAI is validated exclusively for VASP-based simulations of the Ti K-edge in materials featuring a TiO<sub>6</sub> octahedral motif, including:
-						</p>
-						<ul style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em; padding-left: 20px;">
-							<li><strong>Perovskites:</strong> SrTiO<sub>3</sub>, CaTiO<sub>3</sub>, BaTiO<sub>3</sub></li>
-							<li><strong>TiO<sub>2</sub> Polymorphs:</strong> Rutile, Anatase, Brookite</li>
-							<li><strong>Mixed Oxides:</strong> NiTiO<sub>3</sub>, FeTiO<sub>3</sub></li>
-						</ul>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							Users are advised to exercise caution when applying these corrections to chemical species or simulation frameworks outside of the Ti-VASP model. Comprehensive theoretical details and further benchmarks will be provided in an upcoming manuscript.
-						</p>
-
-						<h3 style="margin-top: 1.2em; margin-bottom: 0.5em;">XANES Spectral Analysis</h3>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The XANES Spectral Analysis panel serves as the central visualization and manipulation workspace for comparing experimental and predicted spectra. This panel hosts the spectral visualization and the alignment utilities. Using the energy shift slider located directly beneath the plot, you can manually shift the predicted spectrum within a range of -50 eV to +50 eV to manually align it with the experimental data, while the spectra are initially aligned with a default algorithm.
-						</p>
-
-						<h4 style="margin-top: 1em; margin-bottom: 0.5em; font-size: 1.15em;">Data Plot</h4>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Data Plot is the interactive Plotly graph located within the spectrum analysis area. It overlays your uploaded experimental data, with the predicted spectra, shown as colored lines. The plot allows you to zoom, pan, and hover over data points to view exact energy and absorption values. To restore the original view, double click anywhere inside the plot.
-						</p>
-
-						<h4 style="margin-top: 1em; margin-bottom: 0.5em; font-size: 1.15em;">Structure Matching Scores</h4>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Structure Matching Scores section displays the similarity score rankings of all loaded candidate materials against the experimental data. This table automatically calculates and displays multiple metrics, which you can sort by Pearson, Spearman, Kendall, Cosine Derivative (Cos &part;), Cosine, and Wasserstein. Checkboxes next to each entry allow you to overlay multiple predicted spectra onto the main data plot for direct visual comparison.
-						</p>
-
-						<h4 style="margin-top: 1em; margin-bottom: 0.5em; font-size: 1.15em;">Downloading Data</h4>
-						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1.2em;">
-							The Downloading Data utility allows you to export your analysis and processed datasets. Clicking the "Download Selected POSCARs and Data" button compiles your selected results into a ZIP file. This package contains the POSCAR structure files for the selected materials, a .csv file of the predicted spectra (including site-specific and mean data), and a separate .csv file containing your processed experimental spectrum.
-						</p>
+						<h2>LightshowAI Manual</h2>
+						<h3>Overview</h3>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">LightshowAI is an AI-enabled web-based user interface (UI) that allows researchers to interactively refine the material structure from the measured XAS spectra. The basic usage provides a spectral matching utility, which compares measured XANES spectra against ML-predicted spectra from candidate structures. This capability helps users to identify the atomic structures associated with the measured spectra, although the solution may not be unique because XANES is a local structure probe.</p>
+						<h3>Web UI Workflow & Features</h3>
+						<h4>Uploading Experimental Data</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Upload Experimental Spectrum panel is where the analysis workflow begins using either normalized or raw spectrum data. You can upload the spectral data file in supported formats such as .csv, .dat, .mat, or .xdi, and optionally add a material name. After uploading, use the radio buttons to select whether the data is normalized or raw. If your data is normalized, choose the X-axis (Energy) and Y-axis (Absorption) columns. For raw data, choose whether the measurement type is fluorescent or transmission, and define your Energy, i<sub>0</sub>, and i<sub>t</sub> / i<sub>ff</sub> columns. The interface can automatically detect the columns from the uploaded data. However, it is recommended to double check that the columns were assigned correctly. Lastly, hit the &#8220;Apply &amp; Plot&#8221; button to show the measured spectrum in the spectral visualizer.</p>
+						<h4>Load Structure</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Load Structure panel allows you to input candidate structures through two methods. The first method is a structure database search. Currently, we only support the Materials Project interface using Materials Project Search, where you can enter a Materials Project ID (such as mp-390). The second method you can use is the Batch Structure Upload feature which allows you to drag and drop single or multiple structure files in .cif, .vasp, .poscar, .contcar, POSCAR, CONTCAR, or .json formats. After the structures are loaded, the system will automatically generate the ML-predicted spectra for each one of them and compute corresponding matching score metrics against the experimental spectrum.</p>
+						<h4>Crystal Structure Viewer</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Crystal Structure Viewer panel allows you to interactively explore the uploaded atomic model in a 3d environment. Clicking on specific atoms within the viewer will isolate and display site-specific predicted XANES spectra directly on the plot.</p>
+						<h4>XAS Machine Learning Model</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">This panel lets you select the element type of the absorber and theory used to train model. Currently, we provide OmniXAS graph neural network models of 3d transition metal K-edge XANES trained on two levels of theory, FEFF (8 elements) and VASP (Ti and Cu only). For Ti VASP model, you are also provided with a toggle to turn the Shake-up Correction on or off.</p>
+						<h4>Shake-up Corrections &amp; Validation</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">Shake-up effects in XAS arise from the simultaneous excitation of valence electrons during a core-level transition. While these many-body effects manifest as satellite peaks in X-ray photoemission spectroscopy, they represent physics beyond the standard quasiparticle approximation typically used in simulations.</p>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">Currently, the shake-up implementation in LightshowAI is validated exclusively for VASP-based simulations of the Ti K-edge in materials featuring a TiO<sub>6</sub> octahedral motif, including:</p>
+						<ul style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;"><li><strong>Perovskites:</strong> SrTiO<sub>3</sub>, CaTiO<sub>3</sub>, BaTiO<sub>3</sub></li><li><strong>TiO<sub>2</sub> Polymorphs:</strong> Rutile, Anatase, Brookite</li><li><strong>Mixed Oxides:</strong> NiTiO<sub>3</sub>, FeTiO<sub>3</sub></li></ul>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">Users are advised to exercise caution when applying these corrections to chemical species or simulation frameworks outside of the Ti-VASP model. Comprehensive theoretical details and further benchmarks will be provided in an upcoming manuscript.</p>
+						<h4>XANES Spectral Analysis</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The XANES Spectral Analysis panel serves as the central visualization and manipulation workspace for comparing experimental and predicted spectra. This panel hosts the spectral visualization and the alignment utilities. Using the energy shift slider located directly beneath the plot, you can manually shift the predicted spectrum within a range of -50 eV to +50 eV to manually align it with the experimental data, while the spectra are initially aligned with a default algorithm.</p>
+						<h4>Data Plot</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Data Plot is the interactive Plotly graph located within the spectrum analysis area. It overlays your uploaded experimental data, with the predicted spectra, shown as colored lines. The plot allows you to zoom, pan, and hover over data points to view exact energy and absorption values. To restore the original view, double click anywhere inside the plot.</p>
+						<h4>Structure Matching Scores</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Structure Matching Scores section displays the similarity score rankings of all loaded candidate materials against the experimental data. This table automatically calculates and displays multiple metrics, which you can sort by Pearson, Spearman, Kendall, Cosine Derivative (Cos &#8706;), Cosine, and Wasserstein. Checkboxes next to each entry allow you to overlay multiple predicted spectra onto the main data plot for direct visual comparison.</p>
+						<h4>Downloading Data</h4>
+						<p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 1em;">The Downloading Data utility allows you to export your analysis and processed datasets. Clicking the &#8220;Download Selected POSCARs and Data&#8221; button compiles your selected results into a ZIP file. This package contains the POSCAR structure files for the selected materials, a .csv file of the predicted spectra (including site-specific and mean data), and a separate .csv file containing your processed experimental spectrum.</p>
 					</div>
 					<div class="clear"></div>
 				</div>
