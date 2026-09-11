@@ -1644,6 +1644,9 @@ def handle_batch_upload(contents_list, filenames_list, exp_data, el_type, existi
             base_id = pathlib.Path(filename).stem
             structure_id = base_id
             counter = 2
+            if pathlib.Path(filename).name.lower() in {'poscar', 'contcar'}:
+                base_id = base_id.upper()
+                structure_id = f"{base_id}1"
             existing_ids = {entry['structure_id'] for entry in existing_scores}
             while structure_id in existing_ids:
                 structure_id = f"{base_id}{counter}"
